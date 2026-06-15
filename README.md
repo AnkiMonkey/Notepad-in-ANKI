@@ -45,7 +45,7 @@
 ## Screenshots
 
 <p align="center">
-  <img src="1.png" width="400">
+  <img src="1.png" width="700">
 </p>
 
 ---
