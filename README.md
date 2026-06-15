@@ -1,6 +1,6 @@
 <p align="center">
   
-  <img src="logo.png" width="200">
+  <img src="logo2.png" width="200">
 </p>
 
 A simple notepad where you can write ideas how you would answer that appears while you review cards.
