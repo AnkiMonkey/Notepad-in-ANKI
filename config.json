@@ -16,13 +16,24 @@
   "template_dir": "",
   "auto_load_template": true,
   "default_template": "default.txt",
+  "tag_rules": [
+    {
+      "tag": "Kosti",
+      "file": "kosti_notes.txt"
+    }
+  ],
+  "rules_first_tag_only": false,
   "table_separator": "\t",
-  "table_headers": ["Základ", "Moje"],
+  "table_headers": [
+    "Základ",
+    "Moje"
+  ],
   "table_template_readonly": true,
   "table_empty_rows": 5,
   "shortcut_collapse": "Alt+N",
   "shortcut_import": "Alt+I",
   "shortcut_mode": "Alt+T",
   "shortcut_wider": "Alt+=",
-  "shortcut_narrower": "Alt+-"
+  "shortcut_narrower": "Alt+-",
+  "shortcut_settings": "Alt+S"
 }

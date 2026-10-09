@@ -40,6 +40,8 @@ A simple notepad where you can write ideas how you would answer that appears whi
 - **Collapse** to a thin strip – `⇥` button or `Alt+N`
 - **TXT templates** – loaded per card by tag → deck → `default.txt` from `user_files/templates`, or manually via `TXT` / `Alt+I`
 - **Table mode** – `Alt+T`: column *Základ* from the TXT, column *Moje* you fill in while solving the card
+- **Tag rules** – e.g. tag `Kosti` (and every `Kosti::…` subtag) → `kosti_notes.txt`, first matching rule wins
+- **Settings window** – ⚙ button, `Alt+S` or Tools → Add-ons → Config, every option with a short explanation
 - Hidden outside review, logo smaller and optional, everything in `config.json` (see `config.md`)
 
 ## Compatibility

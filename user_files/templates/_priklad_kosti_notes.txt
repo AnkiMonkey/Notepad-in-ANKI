@@ -1,0 +1,6 @@
+Hranice	
+Uhly	
+Plochy	
+Vybezky	
+Svaly - zaciatky	
+Svaly - upony	
