@@ -1,8 +1,42 @@
 {
-  "font_size": 18,
+  "dock_area": "right",
+  "dock_width": 320,
+  "min_width": 200,
+  "width_step": 40,
+  "remember_width": true,
+  "collapsed": false,
+  "font_size": 16,
   "font_family": "Arial",
-  "dock_width": 500,
-  "dock_height": 600,
-  "hide_titlebar": true,
-  "auto_focus": true
+  "show_logo": true,
+  "logo_height": 36,
+  "mode": "text",
+  "clear_after_answer": true,
+  "auto_focus": false,
+  "hide_outside_review": true,
+  "template_dir": "",
+  "auto_load_template": true,
+  "default_template": "default.txt",
+  "tag_rules": [
+    {
+      "tag": "Kosti",
+      "file": "kosti_notes.txt"
+    }
+  ],
+  "rules_first_tag_only": false,
+  "table_separator": "\t",
+  "table_headers": [
+    "Base",
+    "Notes"
+  ],
+  "table_template_readonly": true,
+  "table_empty_rows": 10,
+  "table_numbered": true,
+  "shortcut_collapse": "Alt+N",
+  "shortcut_import": "Alt+I",
+  "shortcut_mode": "Alt+M",
+  "shortcut_wider": "Alt+.",
+  "shortcut_narrower": "Alt+,",
+  "shortcut_settings": "Alt+S",
+  "shortcut_focus": "Alt+P",
+  "shortcut_save": "Alt+W"
 }
