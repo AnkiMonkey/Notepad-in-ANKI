@@ -36,14 +36,16 @@ A simple notepad where you can write ideas how you would answer that appears whi
 
 ## Options (v2)
 
-- **Adjustable width** – `−` / `+` buttons or `Alt+-` / `Alt+=`, minimum width in config (was fixed 400 px); width is remembered
-- **Collapse** to a thin strip – `⇥` button or `Alt+N`
-- **TXT templates** – loaded per card by tag → deck → `default.txt` from `user_files/templates`, or manually via `TXT` / `Alt+I`
-- **Table mode** – `Alt+T`: column *Základ* from the TXT, column *Moje* you fill in while solving the card
-- **Tag rules** – e.g. tag `Kosti` (and every `Kosti::…` subtag) → `kosti_notes.txt`, first matching rule wins
-- **Keyboard-safe** – typing in the panel never flips the card; Enter = next row, Tab = next cell, Esc = back to the card, Alt+P = jump into the panel, Alt+W = save as template
-- **Settings window** – ⚙ button, `Alt+S` or Tools → Add-ons → Config, every option with a short explanation
-- Hidden outside review, logo smaller and optional, everything in `config.json` (see `config.md`)
+- **Adjustable width** – Narrower / Wider buttons or `Alt+,` / `Alt+.`, minimum width in settings (was fixed 400 px); width is remembered
+- **Collapse** to a thin strip – `»` button or `Alt+N`
+- **Table mode** – `Alt+T`: column *Base* (template or numbers 1–10), column *Notes* you fill in while solving the card
+- **Keyboard-safe** – typing in the panel never flips the card; Enter = next row, Tab = next cell, Esc = back to the card, `Alt+P` = jump into the panel
+- **TXT templates** – loaded per card by tag rule → tag → deck → `default.txt` from `user_files/templates`, or manually via *Load TXT* / `Alt+I`
+- **Save template** – `Alt+W` saves the Base column (or the text) as the template for this card (old file kept as `.bak`)
+- **Tag rules** – e.g. tag `Bones` (and every `Bones::…` subtag) → `bones_notes.txt`, first matching rule wins
+- **Settings window** – ⚙ Settings, `Alt+S` or Tools → Add-ons → Config, every option with a short explanation
+- After answering: table keeps the Base column and clears Notes; text is cleared (a template is loaded again)
+- Hidden outside review, small optional logo, everything in `config.json` (see `config.md`)
 
 ## Compatibility
 

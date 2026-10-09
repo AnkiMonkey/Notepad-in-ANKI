@@ -25,8 +25,8 @@
   "rules_first_tag_only": false,
   "table_separator": "\t",
   "table_headers": [
-    "Základ",
-    "Moje"
+    "Base",
+    "Notes"
   ],
   "table_template_readonly": true,
   "table_empty_rows": 10,
@@ -34,8 +34,8 @@
   "shortcut_collapse": "Alt+N",
   "shortcut_import": "Alt+I",
   "shortcut_mode": "Alt+T",
-  "shortcut_wider": "Alt+=",
-  "shortcut_narrower": "Alt+-",
+  "shortcut_wider": "Alt+.",
+  "shortcut_narrower": "Alt+,",
   "shortcut_settings": "Alt+S",
   "shortcut_focus": "Alt+P",
   "shortcut_save": "Alt+W"

@@ -1,38 +1,38 @@
-**Deep Notes – nastavenia**
+**Deep Notes – settings**
 
-Najpohodlnejšie cez ⚙ v paneli, `Alt+S`, alebo Tools → Add-ons → Deep Notes → Config (otvorí rovnaké okno s popisom každej položky).
+Easiest: the ⚙ Settings button in the panel, `Alt+S`, or Tools → Add-ons → Deep Notes → Config (opens the same window, every option explained).
 
-| Kľúč | Čo robí |
+| Key | What it does |
 |---|---|
-| `dock_area` | `right` / `left` – strana panela |
-| `dock_width` | šírka v px (pamätá sa sama, ak `remember_width`) |
-| `min_width` | najmenšia šírka v px (pôvodne natvrdo 400) |
-| `width_step` | o koľko px menia šírku tlačidlá − / + a skratky |
-| `collapsed` | panel zbalený do úzkeho pásika |
-| `font_size`, `font_family` | písmo poznámok |
-| `show_logo`, `logo_height` | logo AnkiMonkey (výška v px) |
-| `mode` | `text` = voľný zápisník, `table` = tabuľka Základ / Moje |
-| `clear_after_answer` | po ohodnotení karty vyčistí panel |
-| `auto_focus` | po zobrazení otázky skočí kurzor do panela (pozor: potom medzerník píše do panela) |
-| `hide_outside_review` | mimo opakovania (decky, browser) panel schová |
-| `template_dir` | priečinok s TXT šablónami; prázdne = `user_files/templates` v add-one |
-| `auto_load_template` | šablónu načíta sám pri každej karte |
-| `default_template` | súbor, keď sa nenájde šablóna pre tag ani deck |
-| `tag_rules` | pravidlá tag → súbor, napr. `[{"tag": "Kosti", "file": "kosti_notes.txt"}]`; prvé zhora, ktoré sedí, vyhráva |
-| `rules_first_tag_only` | pravidlá sa pozerajú len na prvý tag poznámky (Anki radí tagy abecedne) |
-| `table_separator` | oddeľovač v TXT pre tabuľku (predvolený tabulátor) |
-| `table_headers` | názvy 2 stĺpcov |
-| `table_template_readonly` | stĺpec zo šablóny sa nedá prepísať |
-| `table_empty_rows` | počet riadkov, keď šablóna nie je (predvolene 10) |
-| `table_numbered` | bez šablóny očísluje stĺpec Základ 1, 2, 3 …; Enter na poslednom riadku pridá ďalšie číslo |
-| `shortcut_*` | klávesové skratky (Alt+N, Alt+I, Alt+T, Alt+=, Alt+-, Alt+S, Alt+P, Alt+W); zmena platí po reštarte |
+| `dock_area` | `right` / `left` – panel side |
+| `dock_width` | width in px (remembered automatically when `remember_width` is on) |
+| `min_width` | narrowest allowed width in px |
+| `width_step` | how much Narrower / Wider and their shortcuts change the width |
+| `collapsed` | panel collapsed to a thin strip |
+| `font_size`, `font_family` | font of your notes |
+| `show_logo`, `logo_height` | AnkiMonkey logo (height in px) |
+| `mode` | `text` = free scratchpad, `table` = Base / Notes table |
+| `clear_after_answer` | table: Notes column emptied, Base column kept; text: emptied |
+| `auto_focus` | cursor jumps into the panel when a question is shown (Space then types into the panel) |
+| `hide_outside_review` | hide the panel outside review (deck list, browser) |
+| `template_dir` | folder with TXT templates; empty = `user_files/templates` in the add-on |
+| `auto_load_template` | load a template for every card automatically |
+| `default_template` | file used when no rule, tag or deck matches |
+| `tag_rules` | tag → file rules, e.g. `[{"tag": "Bones", "file": "bones_notes.txt"}]`; first match from the top wins |
+| `rules_first_tag_only` | rules look only at the note's first tag (Anki sorts tags alphabetically) |
+| `table_separator` | separator in the TXT for the table (default tab) |
+| `table_headers` | names of the 2 columns |
+| `table_template_readonly` | template column cannot be edited |
+| `table_empty_rows` | number of rows when there is no template (default 10) |
+| `table_numbered` | without a template, column 1 is numbered 1, 2, 3 …; Enter on the last row adds the next number |
+| `shortcut_*` | keyboard shortcuts (Alt+N, Alt+I, Alt+T, Alt+., Alt+,, Alt+S, Alt+P, Alt+W); changes apply after restart |
 
-**Písanie v paneli:** Anki kláves (Enter, medzerník, 1–4) sa pri písaní do panela nespustí. V tabuľke: **Enter** = ďalší riadok (na konci pridá nový), **Tab** = ďalšie políčko, **Esc** = zrušiť úpravu / späť na kartu. **Alt+P** skočí do panela, **Alt+W** uloží stĺpec Základ (alebo text) ako šablónu pre túto kartu.
-
-**Párovanie šablóny s kartou** (prvá nájdená vyhráva):
-0. pravidlá `tag_rules`: tag `Kosti` sedí na `Kosti`, `Kosti::HK`, `Kosti::DK::femur` …
-1. tagy, najšpecifickejší prvý: `Cihak::scapula` → `Cihak__scapula.txt`, potom `Cihak.txt`
-2. deck: `1 PT::anatomia I` → `1 PT__anatomia I.txt`, potom `1 PT.txt`
+**Template matching** (first found wins):
+0. `tag_rules`: tag `Bones` matches `Bones`, `Bones::UpperLimb`, `Bones::LowerLimb::femur` …
+1. tags, most specific first: `Anatomy::scapula` → `Anatomy__scapula.txt`, then `Anatomy.txt`
+2. deck: `Med::Anatomy I` → `Med__Anatomy I.txt`, then `Med.txt`
 3. `default.txt`
 
-**TXT pre tabuľku:** jeden riadok = jeden riadok tabuľky. Text pred tabulátorom ide do stĺpca Základ, za ním (voliteľné) do stĺpca Moje.
+**TXT for the table:** one line = one row. Text before the tab goes to column 1, after it (optional) to column 2.
+
+**Typing in the panel:** Anki review keys (Enter, Space, 1–4, letters) never fire while you type in the panel. Table: **Enter** = next row (adds one at the end), **Tab** = next cell, **Esc** = cancel edit / back to the card. **Alt+P** jumps into the panel, **Alt+W** saves the Base column (or the text) as the template for this card (previous file kept as `.bak`).

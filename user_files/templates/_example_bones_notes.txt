@@ -1,0 +1,6 @@
+Borders	
+Angles	
+Surfaces	
+Processes	
+Muscle origins	
+Muscle insertions	

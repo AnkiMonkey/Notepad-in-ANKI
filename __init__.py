@@ -5,10 +5,10 @@ Features
 - text mode (free scratchpad) or table mode (template column + your own column)
 - TXT templates: loaded automatically per card (by tag -> deck -> default.txt)
   or manually via "Import TXT"
-- tag rules: e.g. tag Kosti (or Kosti::HK, Kosti::DK ...) -> kosti_notes.txt
+- tag rules: e.g. tag Bones (or Bones::UpperLimb ...) -> bones_notes.txt
 - settings dialog (gear button, Alt+S, or Tools > Add-ons > Config)
 - keyboard shortcuts (configurable): Alt+N collapse, Alt+I import, Alt+T mode,
-  Alt+= / Alt+- width, Alt+S settings, Alt+P jump into panel, Alt+W save as template
+  Alt+. / Alt+, width, Alt+S settings, Alt+P jump into panel, Alt+W save as template
 - typing in the panel never triggers Anki review keys (Enter, Space, 1-4);
   Enter = next row, Tab = next cell, Esc = back to the card
 Everything is local, no cloud.
@@ -79,15 +79,15 @@ DEFAULTS = {
     "tag_rules": [],
     "rules_first_tag_only": False,
     "table_separator": "\t",
-    "table_headers": ["Základ", "Moje"],
+    "table_headers": ["Base", "Notes"],
     "table_template_readonly": True,
     "table_empty_rows": 10,
     "table_numbered": True,
     "shortcut_collapse": "Alt+N",
     "shortcut_import": "Alt+I",
     "shortcut_mode": "Alt+T",
-    "shortcut_wider": "Alt+=",
-    "shortcut_narrower": "Alt+-",
+    "shortcut_wider": "Alt+.",
+    "shortcut_narrower": "Alt+,",
     "shortcut_settings": "Alt+S",
     "shortcut_focus": "Alt+P",
     "shortcut_save": "Alt+W",
@@ -115,10 +115,16 @@ state = {
 
 # ----------------------------------------------------------------- config
 
+OLD_SHORTCUTS = {"Alt+=": "Alt+.", "Alt+-": "Alt+,"}
+
+
 def cfg() -> dict:
     user = mw.addonManager.getConfig(ADDON_KEY) or {}
     merged = dict(DEFAULTS)
     merged.update(user)
+    for key in ("shortcut_wider", "shortcut_narrower"):
+        if merged.get(key) in OLD_SHORTCUTS:
+            merged[key] = OLD_SHORTCUTS[merged[key]]
     return merged
 
 
@@ -261,29 +267,51 @@ def add_row(base=None, mine: str = "", locked: bool = False) -> int:
     return r
 
 
+def _table_has_base() -> bool:
+    t = state["table"]
+    for r in range(t.rowCount()):
+        it = t.item(r, 0)
+        if it and it.text().strip():
+            return True
+    return False
+
+
 def load_for_card(card) -> None:
+    """Fill the panel for a new card.
+
+    Table: a template for this card replaces the Base column; without one the
+    Base column you already have stays (first time: numbered rows).
+    Text: the template text, or empty.
+    """
     state["card"] = card
-    if not cfg()["auto_load_template"]:
-        state["template_path"] = None
-        if cfg()["mode"] == "table":
-            fill_table("")
-        return
-    path, text = find_template(card)
+    path, text = find_template(card) if cfg()["auto_load_template"] else (None, None)
     state["template_path"] = path
     if cfg()["mode"] == "table":
-        fill_table(text)
+        if path:
+            fill_table(text)
+        elif not _table_has_base():
+            fill_table("")
     else:
         fill_text(text)
     set_source(os.path.basename(path) if path else "")
 
 
-def clear_all() -> None:
+def clear_mine() -> None:
+    """After answering: table keeps the Base column and empties Notes; text is emptied."""
+    t = state["table"]
+    if t:
+        for r in range(t.rowCount()):
+            it = t.item(r, 1)
+            if it:
+                it.setText("")
+        # drop extra rows that are now completely empty (keeps numbered rows)
+        for r in range(t.rowCount() - 1, int(cfg()["table_empty_rows"]) - 1, -1):
+            base = t.item(r, 0)
+            if base is None or not base.text().strip():
+                t.removeRow(r)
     if state["text_box"]:
         state["text_box"].clear()
         state["text_box"].setPlaceholderText("Cleared ✓")
-    if state["table"]:
-        state["table"].setRowCount(0)
-    set_source("")
 
 
 # ---------------------------------------------------------------- actions
@@ -325,9 +353,9 @@ def apply_mode() -> None:
     state["text_box"].setVisible(not table_mode)
     state["table"].setVisible(table_mode)
     if state["mode_btn"]:
-        state["mode_btn"].setText("→ Text" if table_mode else "→ Tabuľka")
+        state["mode_btn"].setText("→ Text" if table_mode else "→ Table")
         state["mode_btn"].setToolTip(
-            ("Prepnúť na text" if table_mode else "Prepnúť na tabuľku")
+            ("Switch to text" if table_mode else "Switch to table")
             + f" ({cfg()['shortcut_mode']})"
         )
 
@@ -414,7 +442,7 @@ def focus_reviewer() -> None:
 
 
 def focus_panel() -> None:
-    """Alt+P: jump into the panel (first empty cell of 'Moje' in table mode)."""
+    """Alt+P: jump into the panel (first empty cell of 'Notes' in table mode)."""
     if not state["dock"]:
         return
     expand()
@@ -466,11 +494,18 @@ def save_template() -> None:
         content = "\n".join(lines) + ("\n" if lines else "")
     else:
         content = state["text_box"].toPlainText()
+    if os.path.isfile(path):
+        # keep the previous version, in case Alt+W was pressed by mistake
+        try:
+            with open(path, encoding="utf-8-sig") as src, open(path + ".bak", "w", encoding="utf-8") as dst:
+                dst.write(src.read())
+        except OSError:
+            pass
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(content)
     state["template_path"] = path
     set_source(os.path.basename(path))
-    tooltip(f"Deep Notes: uložené do {os.path.basename(path)}")
+    tooltip(f"Deep Notes: saved to {os.path.basename(path)}")
 
 
 # ------------------------------------------------- keyboard-safe widgets
@@ -583,7 +618,7 @@ def create_dock() -> None:
     # top row: collapse button (always visible) + tools (hidden when collapsed)
     top = QHBoxLayout()
     top.setSpacing(1)
-    collapse_btn = _btn("»", f"Zbaliť / rozbaliť ({conf['shortcut_collapse']})", toggle_collapse)
+    collapse_btn = _btn("»", f"Collapse / expand ({conf['shortcut_collapse']})", toggle_collapse)
     top.addWidget(collapse_btn, 0, Qt.AlignmentFlag.AlignTop)
     state["collapse_btn"] = collapse_btn
 
@@ -595,19 +630,19 @@ def create_dock() -> None:
     # row 1: width + settings (+ logo)
     tools = QHBoxLayout()
     tools.setSpacing(2)
-    tools.addWidget(_btn("Užší", f"Užší panel ({conf['shortcut_narrower']})", narrower))
-    tools.addWidget(_btn("Širší", f"Širší panel ({conf['shortcut_wider']})", wider))
-    tools.addWidget(_btn("⚙ Nastavenia", f"Nastavenia ({conf['shortcut_settings']})", open_settings))
+    tools.addWidget(_btn("Narrower", f"Narrower panel ({conf['shortcut_narrower']})", narrower))
+    tools.addWidget(_btn("Wider", f"Wider panel ({conf['shortcut_wider']})", wider))
+    tools.addWidget(_btn("⚙ Settings", f"Settings ({conf['shortcut_settings']})", open_settings))
     tools.addStretch()
 
     # row 2: content actions
     actions = QHBoxLayout()
     actions.setSpacing(2)
-    actions.addWidget(_btn("Načítať TXT", f"Načítať šablónu z .txt ({conf['shortcut_import']})", import_txt))
-    mode_btn = _btn("→ Tabuľka", f"Prepnúť text / tabuľka ({conf['shortcut_mode']})", toggle_mode)
+    actions.addWidget(_btn("Load TXT", f"Load a template from a .txt file ({conf['shortcut_import']})", import_txt))
+    mode_btn = _btn("→ Table", f"Switch text / table ({conf['shortcut_mode']})", toggle_mode)
     actions.addWidget(mode_btn)
     state["mode_btn"] = mode_btn
-    actions.addWidget(_btn("Uložiť šablónu", f"Uložiť ako šablónu pre túto kartu ({conf['shortcut_save']})", save_template))
+    actions.addWidget(_btn("Save template", f"Save as the template for this card ({conf['shortcut_save']})", save_template))
     actions.addStretch()
 
     if conf["show_logo"]:
@@ -717,72 +752,73 @@ def register_shortcuts() -> None:
 
 
 def add_menu() -> None:
-    act = QAction("Deep Notes: zbaliť / rozbaliť panel", mw)
+    act = QAction("Deep Notes: collapse / expand panel", mw)
     act.triggered.connect(lambda: (create_dock(), state["dock"].show(), toggle_collapse()))
     mw.form.menuTools.addAction(act)
 
 
 # --------------------------------------------------------------- settings
 
-SEPARATORS = [("Tabulátor (\\t)", "\t"), ("Bodkočiarka ;", ";"), ("Zvislá čiara |", "|"), ("Čiarka ,", ",")]
+SEPARATORS = [("Tab (\\t)", "\t"), ("Semicolon ;", ";"), ("Pipe |", "|"), ("Comma ,", ",")]
 
 # (tab, key, label, kind, extra, help)
 SPEC = [
-    ("Panel", "dock_area", "Strana panela", "choice", ["right", "left"],
-     "Vpravo alebo vľavo. Zmena platí po reštarte Anki."),
-    ("Panel", "dock_width", "Šírka (px)", "int", (60, 3000),
-     "Šírka panela. Mení sa aj tlačidlami − / + a skratkami."),
-    ("Panel", "min_width", "Minimálna šírka (px)", "int", (60, 1500),
-     "Užšie sa panel nedá potiahnuť (pôvodne natvrdo 400)."),
-    ("Panel", "width_step", "Krok šírky (px)", "int", (5, 500),
-     "O koľko menia šírku tlačidlá − / + a skratky."),
-    ("Panel", "remember_width", "Pamätať šírku", "bool", None,
-     "Po reštarte Anki ostane posledná šírka."),
-    ("Panel", "hide_outside_review", "Skryť mimo opakovania", "bool", None,
-     "V prehľade deckov a v Browse panel zmizne."),
-    ("Panel", "show_logo", "Zobraziť logo", "bool", None,
-     "Logo AnkiMonkey v lište panela. Zmena platí po reštarte Anki."),
-    ("Panel", "logo_height", "Výška loga (px)", "int", (12, 200),
-     "Zmena platí po reštarte Anki."),
-    ("Písanie", "font_family", "Písmo", "str", None,
-     "Napr. Arial, Consolas, Segoe UI."),
-    ("Písanie", "font_size", "Veľkosť písma", "int", (6, 72), ""),
-    ("Písanie", "mode", "Režim", "choice", ["text", "table"],
-     "text = voľný zápisník, table = tabuľka Základ / Moje (Alt+T prepína)."),
-    ("Písanie", "clear_after_answer", "Vyčistiť po odpovedi", "bool", None,
-     "Po ohodnotení karty sa panel vyprázdni."),
-    ("Písanie", "auto_focus", "Kurzor do panela", "bool", None,
-     "Po zobrazení otázky skočí kurzor do panela. Pozor: medzerník potom píše do panela."),
-    ("Šablóny", "template_dir", "Priečinok šablón", "dir", None,
-     "Prázdne = user_files/templates v add-one (Anki ho pri update neprepíše)."),
-    ("Šablóny", "auto_load_template", "Načítať šablónu automaticky", "bool", None,
-     "Pri každej karte sa nájde a vloží šablóna (pravidlá → tag → deck → default)."),
-    ("Šablóny", "default_template", "Predvolená šablóna", "str", None,
-     "Súbor, keď nesedí žiadne pravidlo, tag ani deck."),
-    ("Šablóny", "rules_first_tag_only", "Pravidlá len pre prvý tag", "bool", None,
-     "Zapnuté = berie sa iba prvý tag poznámky (Anki ich radí abecedne). "
-     "Vypnuté = platí prvé pravidlo zhora, ktoré sedí na hocijaký tag."),
-    ("Tabuľka", "table_header_1", "Názov 1. stĺpca", "str", None, "Stĺpec zo šablóny."),
-    ("Tabuľka", "table_header_2", "Názov 2. stĺpca", "str", None, "Stĺpec, ktorý dopisuješ."),
-    ("Tabuľka", "table_separator", "Oddeľovač v TXT", "sep", None,
-     "Text pred oddeľovačom ide do 1. stĺpca, za ním do 2. stĺpca."),
-    ("Tabuľka", "table_template_readonly", "Zamknúť stĺpec zo šablóny", "bool", None,
-     "1. stĺpec sa nedá prepísať."),
-    ("Tabuľka", "table_empty_rows", "Počet riadkov bez šablóny", "int", (0, 100),
-     "Koľko riadkov má tabuľka, keď pre kartu nie je šablóna."),
-    ("Tabuľka", "table_numbered", "Očíslovať riadky 1, 2, 3 …", "bool", None,
-     "Bez šablóny je v stĺpci Základ číslo riadku (ako čísla na obrázku). "
-     "Enter na poslednom riadku pridá ďalšie číslo."),
-    ("Skratky", "shortcut_collapse", "Zbaliť / rozbaliť", "str", None, "Zmena platí po reštarte Anki."),
-    ("Skratky", "shortcut_import", "Import TXT", "str", None, ""),
-    ("Skratky", "shortcut_mode", "Text / tabuľka", "str", None, ""),
-    ("Skratky", "shortcut_wider", "Širší", "str", None, ""),
-    ("Skratky", "shortcut_narrower", "Užší", "str", None, ""),
-    ("Skratky", "shortcut_settings", "Nastavenia", "str", None, ""),
-    ("Skratky", "shortcut_focus", "Skočiť do panela", "str", None,
-     "V tabuľke skočí na prvé prázdne políčko v stĺpci Moje. Esc vráti klávesnicu karte."),
-    ("Skratky", "shortcut_save", "Uložiť ako šablónu", "str", None,
-     "Uloží stĺpec Základ (alebo text) do šablóny pre túto kartu."),
+    ("Panel", "dock_area", "Panel side", "choice", ["right", "left"],
+     "Right or left. Takes effect after restarting Anki."),
+    ("Panel", "dock_width", "Width (px)", "int", (60, 3000),
+     "Panel width. Also changed with the Narrower / Wider buttons and shortcuts."),
+    ("Panel", "min_width", "Minimum width (px)", "int", (60, 1500),
+     "The panel cannot be made narrower than this."),
+    ("Panel", "width_step", "Width step (px)", "int", (5, 500),
+     "How much Narrower / Wider and their shortcuts change the width."),
+    ("Panel", "remember_width", "Remember width", "bool", None,
+     "Keep the last width after restarting Anki."),
+    ("Panel", "hide_outside_review", "Hide outside review", "bool", None,
+     "Hide the panel on the deck list and in the browser."),
+    ("Panel", "show_logo", "Show logo", "bool", None,
+     "AnkiMonkey logo in the toolbar. Takes effect after restarting Anki."),
+    ("Panel", "logo_height", "Logo height (px)", "int", (12, 200),
+     "Takes effect after restarting Anki."),
+    ("Writing", "font_family", "Font", "str", None,
+     "e.g. Arial, Consolas, Segoe UI."),
+    ("Writing", "font_size", "Font size", "int", (6, 72), ""),
+    ("Writing", "mode", "Mode", "choice", ["text", "table"],
+     "text = free scratchpad, table = Base / Notes table (Alt+T switches)."),
+    ("Writing", "clear_after_answer", "Clear after answer", "bool", None,
+     "Table: the Notes column is emptied, the Base column stays. "
+     "Text: emptied (a template is loaded again for the next card)."),
+    ("Writing", "auto_focus", "Cursor into panel", "bool", None,
+     "Put the cursor in the panel when a question is shown. Note: Space then types into the panel."),
+    ("Templates", "template_dir", "Template folder", "dir", None,
+     "Empty = user_files/templates inside the add-on (kept when the add-on updates)."),
+    ("Templates", "auto_load_template", "Load template automatically", "bool", None,
+     "For every card a template is looked up and loaded (rules → tag → deck → default)."),
+    ("Templates", "default_template", "Default template", "str", None,
+     "Used when no rule, tag or deck matches."),
+    ("Templates", "rules_first_tag_only", "Rules use first tag only", "bool", None,
+     "On = only the note's first tag counts (Anki sorts tags alphabetically). "
+     "Off = the first rule from the top that matches any tag wins."),
+    ("Table", "table_header_1", "Column 1 name", "str", None, "Column from the template."),
+    ("Table", "table_header_2", "Column 2 name", "str", None, "Column you fill in."),
+    ("Table", "table_separator", "Separator in TXT", "sep", None,
+     "Text before the separator goes to column 1, after it to column 2."),
+    ("Table", "table_template_readonly", "Lock template column", "bool", None,
+     "Column 1 from a template cannot be edited."),
+    ("Table", "table_empty_rows", "Rows without template", "int", (0, 100),
+     "How many rows the table has when there is no template for the card."),
+    ("Table", "table_numbered", "Number rows 1, 2, 3 …", "bool", None,
+     "Without a template column 1 holds the row number (like the numbers on an image). "
+     "Enter on the last row adds the next number."),
+    ("Shortcuts", "shortcut_collapse", "Collapse / expand", "str", None, "Changes take effect after restarting Anki."),
+    ("Shortcuts", "shortcut_import", "Load TXT", "str", None, ""),
+    ("Shortcuts", "shortcut_mode", "Text / table", "str", None, ""),
+    ("Shortcuts", "shortcut_wider", "Wider", "str", None, ""),
+    ("Shortcuts", "shortcut_narrower", "Narrower", "str", None, ""),
+    ("Shortcuts", "shortcut_settings", "Settings", "str", None, ""),
+    ("Shortcuts", "shortcut_focus", "Jump into panel", "str", None,
+     "In table mode jumps to the first empty Notes cell. Esc gives the keyboard back to the card."),
+    ("Shortcuts", "shortcut_save", "Save as template", "str", None,
+     "Saves the Base column (or the text) as the template for this card; the old file is kept as .bak."),
 ]
 
 
@@ -796,7 +832,7 @@ def _help_label(text: str) -> QLabel:
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent or mw)
-        self.setWindowTitle("Deep Notes – nastavenia")
+        self.setWindowTitle("Deep Notes – settings")
         self.setMinimumWidth(560)
         self.conf = cfg()
         self.widgets = {}
@@ -811,7 +847,7 @@ class SettingsDialog(QDialog):
                 form = QFormLayout(page)
                 tabs.addTab(page, tab)
                 forms[tab] = form
-                if tab == "Šablóny":
+                if tab == "Templates":
                     self._rules_box(form)
             form = forms[tab]
             w = self._make(key, kind, extra)
@@ -865,7 +901,7 @@ class SettingsDialog(QDialog):
             browse = QPushButton("…")
             browse.setFixedWidth(30)
             browse.clicked.connect(lambda: self._browse(edit))
-            open_btn = QPushButton("Otvoriť")
+            open_btn = QPushButton("Open")
             open_btn.clicked.connect(open_template_dir)
             row.addWidget(edit, 1)
             row.addWidget(browse)
@@ -878,28 +914,28 @@ class SettingsDialog(QDialog):
 
     def _browse(self, edit):
         start = edit.text() or template_dir()
-        path = QFileDialog.getExistingDirectory(self, "Priečinok šablón", start)
+        path = QFileDialog.getExistingDirectory(self, "Template folder", start)
         if path:
             edit.setText(path)
 
     def _rules_box(self, form):
-        form.addRow(QLabel("<b>Pravidlá podľa tagu</b> (prvé zhora, ktoré sedí, vyhráva)"))
+        form.addRow(QLabel("<b>Tag rules</b> (the first matching rule from the top wins)"))
         form.addRow("", _help_label(
-            "Tag „Kosti“ sedí na Kosti, Kosti::HK, Kosti::DK::femur … "
-            "Tag „Kosti::HK“ len na tú vetvu. Súbor sa hľadá v priečinku šablón "
-            "(alebo zadaj celú cestu)."
+            "Tag \"Bones\" matches Bones, Bones::UpperLimb, Bones::LowerLimb::femur … "
+            "Tag \"Bones::UpperLimb\" matches only that branch. The file is looked up "
+            "in the template folder (or give a full path)."
         ))
         table = QTableWidget(0, 2)
-        table.setHorizontalHeaderLabels(["Tag", "Súbor .txt"])
+        table.setHorizontalHeaderLabels(["Tag", ".txt file"])
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         table.verticalHeader().setVisible(False)
         table.setMinimumHeight(140)
         for rule in self.conf.get("tag_rules") or []:
             self._rule_row(table, rule.get("tag", ""), rule.get("file", ""))
         btns = QHBoxLayout()
-        add = QPushButton("Pridať pravidlo")
+        add = QPushButton("Add rule")
         add.clicked.connect(lambda: self._rule_row(table, "", ""))
-        rem = QPushButton("Odstrániť")
+        rem = QPushButton("Remove")
         rem.clicked.connect(lambda: table.removeRow(table.currentRow()) if table.currentRow() >= 0 else None)
         up = QPushButton("▲")
         up.setFixedWidth(30)
@@ -965,7 +1001,7 @@ class SettingsDialog(QDialog):
         new["tag_rules"] = rules
         save_cfg(**new)
         apply_settings()
-        tooltip("Deep Notes: uložené")
+        tooltip("Deep Notes: saved")
         self.accept()
 
 
@@ -1013,7 +1049,7 @@ def on_show_question(card) -> None:
 
 def on_answer(reviewer, card, ease) -> None:
     if cfg()["clear_after_answer"]:
-        clear_all()
+        clear_mine()
     state["card_id"] = None
 
 
