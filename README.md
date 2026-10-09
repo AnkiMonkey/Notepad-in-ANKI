@@ -34,6 +34,14 @@ A simple notepad where you can write ideas how you would answer that appears whi
 
 ---
 
+## Options (v2)
+
+- **Adjustable width** – `−` / `+` buttons or `Alt+-` / `Alt+=`, minimum width in config (was fixed 400 px); width is remembered
+- **Collapse** to a thin strip – `⇥` button or `Alt+N`
+- **TXT templates** – loaded per card by tag → deck → `default.txt` from `user_files/templates`, or manually via `TXT` / `Alt+I`
+- **Table mode** – `Alt+T`: column *Základ* from the TXT, column *Moje* you fill in while solving the card
+- Hidden outside review, logo smaller and optional, everything in `config.json` (see `config.md`)
+
 ## Compatibility
 
 - Anki 23.x+
