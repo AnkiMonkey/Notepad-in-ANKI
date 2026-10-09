@@ -25,7 +25,7 @@ Easiest: the ⚙ Settings button in the panel, `Alt+S`, or Tools → Add-ons →
 | `table_template_readonly` | template column cannot be edited |
 | `table_empty_rows` | number of rows when there is no template (default 10) |
 | `table_numbered` | without a template, column 1 is numbered 1, 2, 3 …; Enter on the last row adds the next number |
-| `shortcut_*` | keyboard shortcuts (Alt+N, Alt+I, Alt+T, Alt+., Alt+,, Alt+S, Alt+P, Alt+W); changes apply after restart |
+| `shortcut_*` | keyboard shortcuts (Alt+N, Alt+I, Alt+M, Alt+., Alt+,, Alt+S, Alt+P, Alt+W); changes apply after restart |
 
 **Template matching** (first found wins):
 0. `tag_rules`: tag `Bones` matches `Bones`, `Bones::UpperLimb`, `Bones::LowerLimb::femur` …

@@ -7,7 +7,7 @@ Features
   or manually via "Import TXT"
 - tag rules: e.g. tag Bones (or Bones::UpperLimb ...) -> bones_notes.txt
 - settings dialog (gear button, Alt+S, or Tools > Add-ons > Config)
-- keyboard shortcuts (configurable): Alt+N collapse, Alt+I import, Alt+T mode,
+- keyboard shortcuts (configurable): Alt+N collapse, Alt+I import, Alt+M mode,
   Alt+. / Alt+, width, Alt+S settings, Alt+P jump into panel, Alt+W save as template
 - typing in the panel never triggers Anki review keys (Enter, Space, 1-4);
   Enter = next row, Tab = next cell, Esc = back to the card
@@ -85,7 +85,7 @@ DEFAULTS = {
     "table_numbered": True,
     "shortcut_collapse": "Alt+N",
     "shortcut_import": "Alt+I",
-    "shortcut_mode": "Alt+T",
+    "shortcut_mode": "Alt+M",
     "shortcut_wider": "Alt+.",
     "shortcut_narrower": "Alt+,",
     "shortcut_settings": "Alt+S",
@@ -110,21 +110,27 @@ state = {
     "template_path": None,
     "card": None,
     "shortcuts": [],
+    "clash_checked": False,
 }
 
 
 # ----------------------------------------------------------------- config
 
-OLD_SHORTCUTS = {"Alt+=": "Alt+.", "Alt+-": "Alt+,"}
+# shortcuts from older versions that never fired (layout issues / clash with the Tools menu)
+OLD_SHORTCUTS = {
+    "shortcut_wider": {"Alt+=": "Alt+."},
+    "shortcut_narrower": {"Alt+-": "Alt+,"},
+    "shortcut_mode": {"Alt+T": "Alt+M"},
+}
 
 
 def cfg() -> dict:
     user = mw.addonManager.getConfig(ADDON_KEY) or {}
     merged = dict(DEFAULTS)
     merged.update(user)
-    for key in ("shortcut_wider", "shortcut_narrower"):
-        if merged.get(key) in OLD_SHORTCUTS:
-            merged[key] = OLD_SHORTCUTS[merged[key]]
+    for key, mapping in OLD_SHORTCUTS.items():
+        if merged.get(key) in mapping:
+            merged[key] = mapping[merged[key]]
     return merged
 
 
@@ -727,28 +733,77 @@ def create_dock() -> None:
         set_width(conf["dock_width"])
 
 
-def register_shortcuts() -> None:
-    if state["shortcuts"]:
-        return
+SHORTCUT_ACTIONS = [
+    ("shortcut_collapse", "Collapse / expand", lambda: toggle_collapse()),
+    ("shortcut_import", "Load TXT", lambda: import_txt()),
+    ("shortcut_mode", "Text / table", lambda: toggle_mode()),
+    ("shortcut_wider", "Wider", lambda: wider()),
+    ("shortcut_narrower", "Narrower", lambda: narrower()),
+    ("shortcut_settings", "Settings", lambda: open_settings()),
+    ("shortcut_focus", "Jump into panel", lambda: focus_panel()),
+    ("shortcut_save", "Save template", lambda: save_template()),
+]
+
+
+def _our_shortcuts():
     conf = cfg()
-    pairs = [
-        ("shortcut_collapse", toggle_collapse),
-        ("shortcut_import", import_txt),
-        ("shortcut_mode", toggle_mode),
-        ("shortcut_wider", wider),
-        ("shortcut_narrower", narrower),
-        ("shortcut_settings", open_settings),
-        ("shortcut_focus", focus_panel),
-        ("shortcut_save", save_template),
-    ]
-    for key, fn in pairs:
-        seq = conf.get(key)
-        if not seq:
-            continue
-        sc = QShortcut(QKeySequence(seq), mw)
-        sc.setContext(Qt.ShortcutContext.WindowShortcut)
-        sc.activated.connect(fn)
-        state["shortcuts"].append(sc)
+    out = []
+    for key, label, fn in SHORTCUT_ACTIONS:
+        seq = str(conf.get(key) or "").strip()
+        if seq:
+            out.append((seq, label, fn))
+    return out
+
+
+def on_state_shortcuts(state_name, shortcuts) -> None:
+    """Register through Anki's own review shortcut machinery (same path as Space, 1-4)."""
+    if state_name != "review":
+        return
+    for seq, _label, fn in _our_shortcuts():
+        shortcuts.append((seq, fn))
+
+
+def _norm(seq: str) -> str:
+    return QKeySequence(seq).toString(QKeySequence.SequenceFormat.PortableText).lower()
+
+
+def check_shortcut_clashes() -> None:
+    """Warn once if one of our shortcuts is also used by a menu, Anki or another add-on."""
+    if state.get("clash_checked"):
+        return
+    state["clash_checked"] = True
+    taken = {}
+    # menu mnemonics, e.g. "&Tools" -> Alt+T
+    try:
+        for act in mw.form.menubar.actions():
+            text = act.text()
+            i = text.find("&")
+            if 0 <= i < len(text) - 1 and text[i + 1] != "&":
+                taken.setdefault(_norm("Alt+" + text[i + 1]), []).append(f"menu {text.replace('&', '')}")
+    except Exception:
+        pass
+    # menu actions with shortcuts
+    for act in mw.findChildren(QAction):
+        for ks in act.shortcuts():
+            if not ks.isEmpty():
+                name = act.text().replace("&", "") or "menu item"
+                taken.setdefault(_norm(ks.toString()), []).append(name)
+    # every QShortcut in the main window (Anki + add-ons); ours appear once each
+    counts = {}
+    for sc in mw.findChildren(QShortcut):
+        k = _norm(sc.key().toString())
+        if k:
+            counts[k] = counts.get(k, 0) + 1
+    problems = []
+    for seq, label, _fn in _our_shortcuts():
+        k = _norm(seq)
+        users = list(taken.get(k, []))
+        if counts.get(k, 0) > 1:
+            users.append("another shortcut")
+        if users:
+            problems.append(f"{seq} ({label}) clashes with {', '.join(users)}")
+    if problems:
+        tooltip("Deep Notes: " + "; ".join(problems) + ". Change it in ⚙ Settings → Shortcuts.", period=8000)
 
 
 def add_menu() -> None:
@@ -783,7 +838,7 @@ SPEC = [
      "e.g. Arial, Consolas, Segoe UI."),
     ("Writing", "font_size", "Font size", "int", (6, 72), ""),
     ("Writing", "mode", "Mode", "choice", ["text", "table"],
-     "text = free scratchpad, table = Base / Notes table (Alt+T switches)."),
+     "text = free scratchpad, table = Base / Notes table (Alt+M switches)."),
     ("Writing", "clear_after_answer", "Clear after answer", "bool", None,
      "Table: the Notes column is emptied, the Base column stays. "
      "Text: emptied (a template is loaded again for the next card)."),
@@ -809,7 +864,9 @@ SPEC = [
     ("Table", "table_numbered", "Number rows 1, 2, 3 …", "bool", None,
      "Without a template column 1 holds the row number (like the numbers on an image). "
      "Enter on the last row adds the next number."),
-    ("Shortcuts", "shortcut_collapse", "Collapse / expand", "str", None, "Changes take effect after restarting Anki."),
+    ("Shortcuts", "shortcut_collapse", "Collapse / expand", "str", None,
+     "Changes apply the next time you start reviewing. Avoid Alt+F/E/V/T/H (menus) "
+     "and keys Anki uses in review (Space, Enter, 1-4, E, R, *, -, =, @, !, Ctrl+1-7)."),
     ("Shortcuts", "shortcut_import", "Load TXT", "str", None, ""),
     ("Shortcuts", "shortcut_mode", "Text / table", "str", None, ""),
     ("Shortcuts", "shortcut_wider", "Wider", "str", None, ""),
@@ -1037,8 +1094,8 @@ def apply_settings() -> None:
 
 def on_show_question(card) -> None:
     create_dock()
-    register_shortcuts()
     state["dock"].show()
+    QTimer.singleShot(500, check_shortcut_clashes)
     if state["card_id"] != card.id:
         state["card_id"] = card.id
         load_for_card(card)
@@ -1064,6 +1121,7 @@ def on_profile_close() -> None:
         save_cfg(dock_width=dock.width())
 
 
+gui_hooks.state_shortcuts_will_change.append(on_state_shortcuts)
 gui_hooks.reviewer_did_show_question.append(on_show_question)
 gui_hooks.reviewer_did_answer_card.append(on_answer)
 gui_hooks.state_did_change.append(on_state_change)
