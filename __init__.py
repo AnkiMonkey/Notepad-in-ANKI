@@ -8,7 +8,9 @@ Features
 - tag rules: e.g. tag Kosti (or Kosti::HK, Kosti::DK ...) -> kosti_notes.txt
 - settings dialog (gear button, Alt+S, or Tools > Add-ons > Config)
 - keyboard shortcuts (configurable): Alt+N collapse, Alt+I import, Alt+T mode,
-  Alt+= / Alt+- width, Alt+S settings
+  Alt+= / Alt+- width, Alt+S settings, Alt+P jump into panel, Alt+W save as template
+- typing in the panel never triggers Anki review keys (Enter, Space, 1-4);
+  Enter = next row, Tab = next cell, Esc = back to the card
 Everything is local, no cloud.
 """
 
@@ -16,6 +18,7 @@ import os
 
 from aqt import gui_hooks, mw
 from aqt.qt import (
+    QAbstractItemDelegate,
     QAbstractItemView,
     QAction,
     QCheckBox,
@@ -24,6 +27,7 @@ from aqt.qt import (
     QDialog,
     QDialogButtonBox,
     QDockWidget,
+    QEvent,
     QFileDialog,
     QFont,
     QFormLayout,
@@ -44,6 +48,7 @@ from aqt.qt import (
     QTableWidgetItem,
     QTextCursor,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -55,7 +60,7 @@ ADDON_KEY = __name__
 DEFAULTS = {
     "dock_area": "right",
     "dock_width": 320,
-    "min_width": 180,
+    "min_width": 200,
     "width_step": 40,
     "remember_width": True,
     "collapsed": False,
@@ -82,6 +87,8 @@ DEFAULTS = {
     "shortcut_wider": "Alt+=",
     "shortcut_narrower": "Alt+-",
     "shortcut_settings": "Alt+S",
+    "shortcut_focus": "Alt+P",
+    "shortcut_save": "Alt+W",
 }
 
 COLLAPSED_WIDTH = 30
@@ -98,6 +105,8 @@ state = {
     "card_id": None,
     "tools": None,
     "width": None,
+    "template_path": None,
+    "card": None,
     "shortcuts": [],
 }
 
@@ -232,9 +241,14 @@ def add_row(base: str = "", mine: str = "", locked: bool = False) -> None:
 
 
 def load_for_card(card) -> None:
+    state["card"] = card
     if not cfg()["auto_load_template"]:
+        state["template_path"] = None
+        if cfg()["mode"] == "table":
+            fill_table("")
         return
     path, text = find_template(card)
+    state["template_path"] = path
     if cfg()["mode"] == "table":
         fill_table(text)
     else:
@@ -290,7 +304,7 @@ def apply_mode() -> None:
     state["text_box"].setVisible(not table_mode)
     state["table"].setVisible(table_mode)
     if state["mode_btn"]:
-        state["mode_btn"].setText("¶" if table_mode else "▦")
+        state["mode_btn"].setText("Txt" if table_mode else "Tab")
         state["mode_btn"].setToolTip(
             ("Prepnúť na text" if table_mode else "Prepnúť na tabuľku")
             + f" ({cfg()['shortcut_mode']})"
@@ -345,7 +359,7 @@ def collapse() -> None:
     dock.setMinimumWidth(COLLAPSED_WIDTH)
     dock.setMaximumWidth(COLLAPSED_WIDTH)
     mw.resizeDocks([dock], [COLLAPSED_WIDTH], Qt.Orientation.Horizontal)
-    state["collapse_btn"].setText("⇤" if cfg()["dock_area"] == "right" else "⇥")
+    state["collapse_btn"].setText("«" if cfg()["dock_area"] == "right" else "»")
     save_cfg(collapsed=True)
 
 
@@ -356,7 +370,7 @@ def expand() -> None:
     state["body"].show()
     state["tools"].show()
     dock.setMaximumWidth(QT_MAX)
-    state["collapse_btn"].setText("⇥" if cfg()["dock_area"] == "right" else "⇤")
+    state["collapse_btn"].setText("»" if cfg()["dock_area"] == "right" else "«")
     save_cfg(collapsed=False)
     set_width(cfg()["dock_width"])
 
@@ -370,13 +384,153 @@ def toggle_collapse() -> None:
         expand()
 
 
+def focus_reviewer() -> None:
+    """Esc in the panel: give the keyboard back to the card."""
+    try:
+        mw.web.setFocus()
+    except Exception:
+        mw.setFocus()
+
+
+def focus_panel() -> None:
+    """Alt+P: jump into the panel (first empty cell of 'Moje' in table mode)."""
+    if not state["dock"]:
+        return
+    expand()
+    if cfg()["mode"] == "table":
+        t = state["table"]
+        if t.rowCount() == 0:
+            add_row()
+        target = 0
+        for r in range(t.rowCount()):
+            it = t.item(r, 1)
+            if it is None or not it.text().strip():
+                target = r
+                break
+        t.setFocus()
+        t.setCurrentCell(target, 1)
+        t.editItem(t.item(target, 1))
+    else:
+        state["text_box"].setFocus()
+
+
+def _default_template_name(card) -> str:
+    rule = rule_file(card) if card else None
+    if rule:
+        return rule
+    tags = card.note().tags if card else []
+    if tags:
+        return tags[0].replace("::", "__") + ".txt"
+    return cfg()["default_template"]
+
+
+def save_template() -> None:
+    """Alt+W: save the panel as the template for this card (column 1 in table mode)."""
+    if not state["dock"]:
+        return
+    path = state.get("template_path")
+    if not path:
+        folder = template_dir()
+        os.makedirs(folder, exist_ok=True)
+        name = _default_template_name(state.get("card"))
+        path = name if os.path.isabs(name) else os.path.join(folder, name)
+    if cfg()["mode"] == "table":
+        t = state["table"]
+        lines = []
+        for r in range(t.rowCount()):
+            it = t.item(r, 0)
+            txt = it.text().strip() if it else ""
+            if txt:
+                lines.append(txt)
+        content = "\n".join(lines) + ("\n" if lines else "")
+    else:
+        content = state["text_box"].toPlainText()
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    state["template_path"] = path
+    set_source(os.path.basename(path))
+    tooltip(f"Deep Notes: uložené do {os.path.basename(path)}")
+
+
+# ------------------------------------------------- keyboard-safe widgets
+
+_REVIEW_MODS = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ControlModifier
+
+
+def _eat_shortcut(ev) -> bool:
+    """Plain keys typed in the panel must not reach Anki's reviewer shortcuts."""
+    if ev.type() == QEvent.Type.ShortcutOverride and not (ev.modifiers() & _REVIEW_MODS):
+        ev.accept()
+        return True
+    return False
+
+
+class PanelTextEdit(QTextEdit):
+    def event(self, ev):
+        if _eat_shortcut(ev):
+            return True
+        return super().event(ev)
+
+    def keyPressEvent(self, ev):
+        if ev.key() == Qt.Key.Key_Escape:
+            focus_reviewer()
+            return
+        super().keyPressEvent(ev)
+
+
+class PanelTable(QTableWidget):
+    """Enter = save cell + next row (adds a row at the end), Tab = next cell,
+    Esc = cancel edit / back to the card."""
+
+    def event(self, ev):
+        if _eat_shortcut(ev):
+            return True
+        return super().event(ev)
+
+    def keyPressEvent(self, ev):
+        key = ev.key()
+        editing = self.state() == QAbstractItemView.State.EditingState
+        if key == Qt.Key.Key_Escape and not editing:
+            focus_reviewer()
+            return
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not editing:
+            self.next_row()
+            return
+        super().keyPressEvent(ev)
+
+    def closeEditor(self, editor, hint):
+        super().closeEditor(editor, hint)
+        if hint == QAbstractItemDelegate.EndEditHint.SubmitModelCache:
+            self.next_row()
+
+    def next_row(self):
+        r, c = self.currentRow(), max(0, self.currentColumn())
+        if r + 1 >= self.rowCount():
+            add_row()
+        r += 1
+        self.setCurrentCell(r, c)
+        item = self.item(r, c)
+        if item is None:
+            item = QTableWidgetItem("")
+            self.setItem(r, c, item)
+        if item.flags() & Qt.ItemFlag.ItemIsEditable:
+            self.editItem(item)
+
+
 # --------------------------------------------------------------------- ui
 
-def _btn(text: str, tip: str, slot) -> QPushButton:
-    b = QPushButton(text)
+BTN_STYLE = (
+    "QToolButton { padding: 0px 3px; margin: 0px; min-width: 18px; font-size: 13px; }"
+)
+
+
+def _btn(text: str, tip: str, slot) -> QToolButton:
+    b = QToolButton()
+    b.setText(text)
     b.setToolTip(tip)
+    b.setStyleSheet(BTN_STYLE)
     b.setFixedHeight(24)
-    b.setFixedWidth(22 if len(text) <= 2 else 30)
+    b.setAutoRaise(False)
     b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
     b.clicked.connect(slot)
     return b
@@ -404,7 +558,7 @@ def create_dock() -> None:
     # top row: collapse button (always visible) + tools (hidden when collapsed)
     top = QHBoxLayout()
     top.setSpacing(1)
-    collapse_btn = _btn("⇥", f"Zbaliť / rozbaliť ({conf['shortcut_collapse']})", toggle_collapse)
+    collapse_btn = _btn("»", f"Zbaliť / rozbaliť ({conf['shortcut_collapse']})", toggle_collapse)
     top.addWidget(collapse_btn, 0, Qt.AlignmentFlag.AlignTop)
     state["collapse_btn"] = collapse_btn
 
@@ -415,10 +569,10 @@ def create_dock() -> None:
     tools.addWidget(_btn("−", f"Užší ({conf['shortcut_narrower']})", narrower))
     tools.addWidget(_btn("+", f"Širší ({conf['shortcut_wider']})", wider))
     tools.addWidget(_btn("TXT", f"Import TXT ({conf['shortcut_import']})", import_txt))
-    mode_btn = _btn("▦", f"Text / tabuľka ({conf['shortcut_mode']})", toggle_mode)
+    mode_btn = _btn("Tab", f"Text / tabuľka ({conf['shortcut_mode']})", toggle_mode)
     tools.addWidget(mode_btn)
     state["mode_btn"] = mode_btn
-    tools.addWidget(_btn("＋", "Pridať riadok do tabuľky", lambda: add_row()))
+    tools.addWidget(_btn("Ulož", f"Uložiť ako šablónu ({conf['shortcut_save']})", save_template))
     tools.addWidget(_btn("⚙", f"Nastavenia ({conf['shortcut_settings']})", open_settings))
     tools.addStretch()
 
@@ -457,16 +611,17 @@ def create_dock() -> None:
 
     font = QFont(conf["font_family"], int(conf["font_size"]))
 
-    text_box = QTextEdit()
+    text_box = PanelTextEdit()
     text_box.setFont(font)
     text_box.setPlaceholderText("Write thoughts, reasoning, hypotheses...")
     text_box.setMinimumWidth(60)
     body_layout.addWidget(text_box)
     state["text_box"] = text_box
 
-    table = QTableWidget(0, 2)
+    table = PanelTable(0, 2)
     table.setFont(font)
     table.setMinimumWidth(60)
+    table.setTabKeyNavigation(True)
     headers = list(conf["table_headers"])[:2] + ["", ""]
     table.setHorizontalHeaderLabels(headers[:2])
     table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -511,6 +666,8 @@ def register_shortcuts() -> None:
         ("shortcut_wider", wider),
         ("shortcut_narrower", narrower),
         ("shortcut_settings", open_settings),
+        ("shortcut_focus", focus_panel),
+        ("shortcut_save", save_template),
     ]
     for key, fn in pairs:
         seq = conf.get(key)
@@ -582,6 +739,10 @@ SPEC = [
     ("Skratky", "shortcut_wider", "Širší", "str", None, ""),
     ("Skratky", "shortcut_narrower", "Užší", "str", None, ""),
     ("Skratky", "shortcut_settings", "Nastavenia", "str", None, ""),
+    ("Skratky", "shortcut_focus", "Skočiť do panela", "str", None,
+     "V tabuľke skočí na prvé prázdne políčko v stĺpci Moje. Esc vráti klávesnicu karte."),
+    ("Skratky", "shortcut_save", "Uložiť ako šablónu", "str", None,
+     "Uloží stĺpec Základ (alebo text) do šablóny pre túto kartu."),
 ]
 
 

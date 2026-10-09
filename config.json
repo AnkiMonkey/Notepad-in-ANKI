@@ -1,7 +1,7 @@
 {
   "dock_area": "right",
   "dock_width": 320,
-  "min_width": 180,
+  "min_width": 200,
   "width_step": 40,
   "remember_width": true,
   "collapsed": false,
@@ -35,5 +35,7 @@
   "shortcut_mode": "Alt+T",
   "shortcut_wider": "Alt+=",
   "shortcut_narrower": "Alt+-",
-  "shortcut_settings": "Alt+S"
+  "shortcut_settings": "Alt+S",
+  "shortcut_focus": "Alt+P",
+  "shortcut_save": "Alt+W"
 }

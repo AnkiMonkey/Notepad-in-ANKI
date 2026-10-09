@@ -41,6 +41,7 @@ A simple notepad where you can write ideas how you would answer that appears whi
 - **TXT templates** – loaded per card by tag → deck → `default.txt` from `user_files/templates`, or manually via `TXT` / `Alt+I`
 - **Table mode** – `Alt+T`: column *Základ* from the TXT, column *Moje* you fill in while solving the card
 - **Tag rules** – e.g. tag `Kosti` (and every `Kosti::…` subtag) → `kosti_notes.txt`, first matching rule wins
+- **Keyboard-safe** – typing in the panel never flips the card; Enter = next row, Tab = next cell, Esc = back to the card, Alt+P = jump into the panel, Alt+W = save as template
 - **Settings window** – ⚙ button, `Alt+S` or Tools → Add-ons → Config, every option with a short explanation
 - Hidden outside review, logo smaller and optional, everything in `config.json` (see `config.md`)
 
