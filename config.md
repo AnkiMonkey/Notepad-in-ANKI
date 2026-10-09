@@ -23,7 +23,8 @@ Najpohodlnejšie cez ⚙ v paneli, `Alt+S`, alebo Tools → Add-ons → Deep Not
 | `table_separator` | oddeľovač v TXT pre tabuľku (predvolený tabulátor) |
 | `table_headers` | názvy 2 stĺpcov |
 | `table_template_readonly` | stĺpec zo šablóny sa nedá prepísať |
-| `table_empty_rows` | počet prázdnych riadkov, keď šablóna nie je |
+| `table_empty_rows` | počet riadkov, keď šablóna nie je (predvolene 10) |
+| `table_numbered` | bez šablóny očísluje stĺpec Základ 1, 2, 3 …; Enter na poslednom riadku pridá ďalšie číslo |
 | `shortcut_*` | klávesové skratky (Alt+N, Alt+I, Alt+T, Alt+=, Alt+-, Alt+S, Alt+P, Alt+W); zmena platí po reštarte |
 
 **Písanie v paneli:** Anki kláves (Enter, medzerník, 1–4) sa pri písaní do panela nespustí. V tabuľke: **Enter** = ďalší riadok (na konci pridá nový), **Tab** = ďalšie políčko, **Esc** = zrušiť úpravu / späť na kartu. **Alt+P** skočí do panela, **Alt+W** uloží stĺpec Základ (alebo text) ako šablónu pre túto kartu.

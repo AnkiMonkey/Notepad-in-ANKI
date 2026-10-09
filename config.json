@@ -29,7 +29,8 @@
     "Moje"
   ],
   "table_template_readonly": true,
-  "table_empty_rows": 5,
+  "table_empty_rows": 10,
+  "table_numbered": true,
   "shortcut_collapse": "Alt+N",
   "shortcut_import": "Alt+I",
   "shortcut_mode": "Alt+T",

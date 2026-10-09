@@ -43,6 +43,7 @@ from aqt.qt import (
     QSpinBox,
     QTabWidget,
     Qt,
+    QTimer,
     QUrl,
     QTableWidget,
     QTableWidgetItem,
@@ -80,7 +81,8 @@ DEFAULTS = {
     "table_separator": "\t",
     "table_headers": ["Základ", "Moje"],
     "table_template_readonly": True,
-    "table_empty_rows": 5,
+    "table_empty_rows": 10,
+    "table_numbered": True,
     "shortcut_collapse": "Alt+N",
     "shortcut_import": "Alt+I",
     "shortcut_mode": "Alt+T",
@@ -222,6 +224,7 @@ def fill_table(template: str) -> None:
     if not lines:
         for _ in range(int(conf["table_empty_rows"])):
             add_row()
+        table.resizeRowsToContents()
         return
     for ln in lines:
         base, _, mine = ln.partition(sep)
@@ -229,8 +232,25 @@ def fill_table(template: str) -> None:
     table.resizeRowsToContents()
 
 
-def add_row(base: str = "", mine: str = "", locked: bool = False) -> None:
+def _next_number() -> str:
+    """Number for a new row: last numeric value in column 1 + 1."""
     table = state["table"]
+    for r in range(table.rowCount() - 1, -1, -1):
+        it = table.item(r, 0)
+        txt = it.text().strip() if it else ""
+        if txt.isdigit():
+            return str(int(txt) + 1)
+        if txt:
+            return ""
+    return "1"
+
+
+def add_row(base=None, mine: str = "", locked: bool = False) -> int:
+    """Append a row; without base text and with table_numbered on, column 1 gets the next number."""
+    table = state["table"]
+    if base is None:
+        base = _next_number() if cfg()["table_numbered"] else ""
+        locked = bool(base)
     r = table.rowCount()
     table.insertRow(r)
     a = QTableWidgetItem(base)
@@ -238,6 +258,7 @@ def add_row(base: str = "", mine: str = "", locked: bool = False) -> None:
         a.setFlags(a.flags() & ~Qt.ItemFlag.ItemIsEditable)
     table.setItem(r, 0, a)
     table.setItem(r, 1, QTableWidgetItem(mine))
+    return r
 
 
 def load_for_card(card) -> None:
@@ -304,7 +325,7 @@ def apply_mode() -> None:
     state["text_box"].setVisible(not table_mode)
     state["table"].setVisible(table_mode)
     if state["mode_btn"]:
-        state["mode_btn"].setText("Txt" if table_mode else "Tab")
+        state["mode_btn"].setText("→ Text" if table_mode else "→ Tabuľka")
         state["mode_btn"].setToolTip(
             ("Prepnúť na text" if table_mode else "Prepnúť na tabuľku")
             + f" ({cfg()['shortcut_mode']})"
@@ -508,13 +529,17 @@ class PanelTable(QTableWidget):
         if r + 1 >= self.rowCount():
             add_row()
         r += 1
-        self.setCurrentCell(r, c)
         item = self.item(r, c)
         if item is None:
             item = QTableWidgetItem("")
             self.setItem(r, c, item)
-        if item.flags() & Qt.ItemFlag.ItemIsEditable:
-            self.editItem(item)
+        if not (item.flags() & Qt.ItemFlag.ItemIsEditable):
+            c = 1
+            item = self.item(r, 1)
+        self.setCurrentCell(r, c)
+        self.scrollToItem(item)
+        # open the editor after Qt finished closing the previous one
+        QTimer.singleShot(0, lambda it=item: self.editItem(it))
 
 
 # --------------------------------------------------------------------- ui
@@ -563,18 +588,27 @@ def create_dock() -> None:
     state["collapse_btn"] = collapse_btn
 
     tools_w = QWidget()
-    tools = QHBoxLayout(tools_w)
-    tools.setContentsMargins(0, 0, 0, 0)
-    tools.setSpacing(1)
-    tools.addWidget(_btn("−", f"Užší ({conf['shortcut_narrower']})", narrower))
-    tools.addWidget(_btn("+", f"Širší ({conf['shortcut_wider']})", wider))
-    tools.addWidget(_btn("TXT", f"Import TXT ({conf['shortcut_import']})", import_txt))
-    mode_btn = _btn("Tab", f"Text / tabuľka ({conf['shortcut_mode']})", toggle_mode)
-    tools.addWidget(mode_btn)
-    state["mode_btn"] = mode_btn
-    tools.addWidget(_btn("Ulož", f"Uložiť ako šablónu ({conf['shortcut_save']})", save_template))
-    tools.addWidget(_btn("⚙", f"Nastavenia ({conf['shortcut_settings']})", open_settings))
+    tools_rows = QVBoxLayout(tools_w)
+    tools_rows.setContentsMargins(0, 0, 0, 0)
+    tools_rows.setSpacing(2)
+
+    # row 1: width + settings (+ logo)
+    tools = QHBoxLayout()
+    tools.setSpacing(2)
+    tools.addWidget(_btn("Užší", f"Užší panel ({conf['shortcut_narrower']})", narrower))
+    tools.addWidget(_btn("Širší", f"Širší panel ({conf['shortcut_wider']})", wider))
+    tools.addWidget(_btn("⚙ Nastavenia", f"Nastavenia ({conf['shortcut_settings']})", open_settings))
     tools.addStretch()
+
+    # row 2: content actions
+    actions = QHBoxLayout()
+    actions.setSpacing(2)
+    actions.addWidget(_btn("Načítať TXT", f"Načítať šablónu z .txt ({conf['shortcut_import']})", import_txt))
+    mode_btn = _btn("→ Tabuľka", f"Prepnúť text / tabuľka ({conf['shortcut_mode']})", toggle_mode)
+    actions.addWidget(mode_btn)
+    state["mode_btn"] = mode_btn
+    actions.addWidget(_btn("Uložiť šablónu", f"Uložiť ako šablónu pre túto kartu ({conf['shortcut_save']})", save_template))
+    actions.addStretch()
 
     if conf["show_logo"]:
         pix = None
@@ -592,6 +626,9 @@ def create_dock() -> None:
             logo.setMinimumWidth(0)
             logo.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
             tools.addWidget(logo)
+
+    tools_rows.addLayout(tools)
+    tools_rows.addLayout(actions)
 
     top.addWidget(tools_w, 1)
     root_layout.addLayout(top)
@@ -731,8 +768,11 @@ SPEC = [
      "Text pred oddeľovačom ide do 1. stĺpca, za ním do 2. stĺpca."),
     ("Tabuľka", "table_template_readonly", "Zamknúť stĺpec zo šablóny", "bool", None,
      "1. stĺpec sa nedá prepísať."),
-    ("Tabuľka", "table_empty_rows", "Prázdne riadky", "int", (0, 50),
-     "Koľko prázdnych riadkov, keď šablóna nie je."),
+    ("Tabuľka", "table_empty_rows", "Počet riadkov bez šablóny", "int", (0, 100),
+     "Koľko riadkov má tabuľka, keď pre kartu nie je šablóna."),
+    ("Tabuľka", "table_numbered", "Očíslovať riadky 1, 2, 3 …", "bool", None,
+     "Bez šablóny je v stĺpci Základ číslo riadku (ako čísla na obrázku). "
+     "Enter na poslednom riadku pridá ďalšie číslo."),
     ("Skratky", "shortcut_collapse", "Zbaliť / rozbaliť", "str", None, "Zmena platí po reštarte Anki."),
     ("Skratky", "shortcut_import", "Import TXT", "str", None, ""),
     ("Skratky", "shortcut_mode", "Text / tabuľka", "str", None, ""),
