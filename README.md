@@ -39,6 +39,7 @@ A simple notepad where you can write ideas how you would answer that appears whi
 - **Adjustable width** – Narrower / Wider buttons or `Alt+,` / `Alt+.`, minimum width in settings (was fixed 400 px); width is remembered
 - **Collapse** to a thin strip – `»` button or `Alt+N`
 - **Table mode** – `Alt+M`: column *Base* (template or numbers 1–10), column *Notes* you fill in while solving the card
+- **Rows? prompt** – on every card without a template the table asks how many rows you want: type a number + Enter (cursor lands in the first Notes cell), Esc keeps the current rows; it offers the last number you used
 - **Keyboard-safe** – typing in the panel never flips the card; Enter = next row, Tab = next cell, Esc = back to the card, `Alt+P` = jump into the panel
 - **TXT templates** – loaded per card by tag rule → tag → deck → `default.txt` from `user_files/templates`, or manually via *Load TXT* / `Alt+I`
 - **Save template** – `Alt+W` saves the Base column (or the text) as the template for this card (old file kept as `.bak`)

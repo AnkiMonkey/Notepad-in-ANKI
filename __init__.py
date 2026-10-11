@@ -3,6 +3,7 @@
 Features
 - dockable panel (left/right), adjustable + remembered width, collapse to a thin strip
 - text mode (free scratchpad) or table mode (template column + your own column)
+- table without a template asks "Rows?" on every card (number + Enter)
 - TXT templates: loaded automatically per card (by tag -> deck -> default.txt)
   or manually via "Import TXT"
 - tag rules: e.g. tag Bones (or Bones::UpperLimb ...) -> bones_notes.txt
@@ -83,6 +84,7 @@ DEFAULTS = {
     "table_template_readonly": True,
     "table_empty_rows": 10,
     "table_numbered": True,
+    "table_ask_rows": True,
     "shortcut_collapse": "Alt+N",
     "shortcut_import": "Alt+I",
     "shortcut_mode": "Alt+M",
@@ -111,6 +113,9 @@ state = {
     "card": None,
     "shortcuts": [],
     "clash_checked": False,
+    "rows_bar": None,
+    "rows_box": None,
+    "last_rows": None,
 }
 
 
@@ -273,6 +278,51 @@ def add_row(base=None, mine: str = "", locked: bool = False) -> int:
     return r
 
 
+def fill_numbered(n: int) -> None:
+    """Table with n rows (numbered when table_numbered is on), Notes column empty."""
+    table = state["table"]
+    table.setRowCount(0)
+    for _ in range(max(0, int(n))):
+        add_row()
+    table.resizeRowsToContents()
+
+
+def ask_rows() -> None:
+    """Show the 'Rows?' bar above the table, pre-filled with the last number used."""
+    bar, box = state["rows_bar"], state["rows_box"]
+    if not bar:
+        return
+    last = state.get("last_rows")
+    box.setValue(int(last if last is not None else cfg()["table_empty_rows"]))
+    bar.show()
+    # after Anki has finished showing the question (it focuses the card itself)
+    QTimer.singleShot(60, _focus_rows_box)
+
+
+def _focus_rows_box() -> None:
+    bar, box = state["rows_bar"], state["rows_box"]
+    if bar and bar.isVisible():
+        box.setFocus()
+        box.selectAll()
+
+
+def confirm_rows() -> None:
+    """Enter / OK in the 'Rows?' bar: build the rows and jump into the first Notes cell."""
+    box = state["rows_box"]
+    box.interpretText()
+    n = box.value()
+    state["last_rows"] = n
+    state["rows_bar"].hide()
+    fill_numbered(n)
+    focus_panel()
+
+
+def skip_rows() -> None:
+    """Esc in the 'Rows?' bar: keep the current rows, keyboard back to the card."""
+    state["rows_bar"].hide()
+    focus_reviewer()
+
+
 def _table_has_base() -> bool:
     t = state["table"]
     for r in range(t.rowCount()):
@@ -292,11 +342,16 @@ def load_for_card(card) -> None:
     state["card"] = card
     path, text = find_template(card) if cfg()["auto_load_template"] else (None, None)
     state["template_path"] = path
+    if state["rows_bar"]:
+        state["rows_bar"].hide()
     if cfg()["mode"] == "table":
         if path:
             fill_table(text)
-        elif not _table_has_base():
-            fill_table("")
+        else:
+            if not _table_has_base():
+                fill_table("")
+            if cfg()["table_ask_rows"] and state["body"].isVisible():
+                ask_rows()
     else:
         fill_text(text)
     set_source(os.path.basename(path) if path else "")
@@ -358,6 +413,8 @@ def apply_mode() -> None:
     table_mode = cfg()["mode"] == "table"
     state["text_box"].setVisible(not table_mode)
     state["table"].setVisible(table_mode)
+    if state["rows_bar"] and not table_mode:
+        state["rows_bar"].hide()
     if state["mode_btn"]:
         state["mode_btn"].setText("→ Text" if table_mode else "→ Table")
         state["mode_btn"].setToolTip(
@@ -583,6 +640,25 @@ class PanelTable(QTableWidget):
         QTimer.singleShot(0, lambda it=item: self.editItem(it))
 
 
+class RowsSpinBox(QSpinBox):
+    """'Rows?' box: digits and Enter never reach Anki's review keys.
+    Enter = build the rows, Esc = keep the current rows."""
+
+    def event(self, ev):
+        if _eat_shortcut(ev):
+            return True
+        return super().event(ev)
+
+    def keyPressEvent(self, ev):
+        if ev.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            confirm_rows()
+            return
+        if ev.key() == Qt.Key.Key_Escape:
+            skip_rows()
+            return
+        super().keyPressEvent(ev)
+
+
 # --------------------------------------------------------------------- ui
 
 BTN_STYLE = (
@@ -686,6 +762,31 @@ def create_dock() -> None:
     source.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
     body_layout.addWidget(source)
     state["source_label"] = source
+
+    rows_bar = QWidget()
+    rows_bar.setObjectName("deepNotesRows")
+    rows_bar.setStyleSheet("#deepNotesRows { border: 2px solid #2e6fd8; border-radius: 6px; }")
+    rows_row = QHBoxLayout(rows_bar)
+    rows_row.setContentsMargins(6, 3, 6, 3)
+    rows_row.setSpacing(4)
+    rows_lbl = QLabel("Rows?")
+    rows_lbl.setStyleSheet("font-weight: bold;")
+    rows_box = RowsSpinBox()
+    rows_box.setRange(1, 100)
+    rows_box.setFixedWidth(64)
+    rows_box.setToolTip("Number + Enter = numbered rows, Esc = keep the current rows")
+    rows_hint = QLabel("Enter = create · Esc = skip")
+    rows_hint.setStyleSheet("font-size: 11px; color: gray;")
+    rows_hint.setMinimumWidth(0)
+    rows_hint.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+    rows_row.addWidget(rows_lbl)
+    rows_row.addWidget(rows_box)
+    rows_row.addWidget(_btn("OK", "Create the rows (Enter)", confirm_rows))
+    rows_row.addWidget(rows_hint, 1)
+    rows_bar.hide()
+    body_layout.addWidget(rows_bar)
+    state["rows_bar"] = rows_bar
+    state["rows_box"] = rows_box
 
     font = QFont(conf["font_family"], int(conf["font_size"]))
 
@@ -860,10 +961,14 @@ SPEC = [
     ("Table", "table_template_readonly", "Lock template column", "bool", None,
      "Column 1 from a template cannot be edited."),
     ("Table", "table_empty_rows", "Rows without template", "int", (0, 100),
-     "How many rows the table has when there is no template for the card."),
+     "How many rows the table has when there is no template for the card "
+     "(also the first number offered in the 'Rows?' box)."),
     ("Table", "table_numbered", "Number rows 1, 2, 3 …", "bool", None,
      "Without a template column 1 holds the row number (like the numbers on an image). "
      "Enter on the last row adds the next number."),
+    ("Table", "table_ask_rows", "Ask for row count", "bool", None,
+     "On every card without a template a 'Rows?' box appears above the table: "
+     "type a number + Enter. Esc keeps the current rows. It offers the last number you used."),
     ("Shortcuts", "shortcut_collapse", "Collapse / expand", "str", None,
      "Changes apply the next time you start reviewing. Avoid Alt+F/E/V/T/H (menus) "
      "and keys Anki uses in review (Space, Enter, 1-4, E, R, *, -, =, @, !, Ctrl+1-7)."),
@@ -1099,7 +1204,8 @@ def on_show_question(card) -> None:
     if state["card_id"] != card.id:
         state["card_id"] = card.id
         load_for_card(card)
-    if cfg()["auto_focus"] and state["body"].isVisible():
+    asking = state["rows_bar"] is not None and state["rows_bar"].isVisible()
+    if cfg()["auto_focus"] and state["body"].isVisible() and not asking:
         target = state["table"] if cfg()["mode"] == "table" else state["text_box"]
         target.setFocus()
 

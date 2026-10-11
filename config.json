@@ -31,6 +31,7 @@
   "table_template_readonly": true,
   "table_empty_rows": 10,
   "table_numbered": true,
+  "table_ask_rows": true,
   "shortcut_collapse": "Alt+N",
   "shortcut_import": "Alt+I",
   "shortcut_mode": "Alt+M",

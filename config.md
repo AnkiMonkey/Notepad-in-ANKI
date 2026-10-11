@@ -25,6 +25,7 @@ Easiest: the ⚙ Settings button in the panel, `Alt+S`, or Tools → Add-ons →
 | `table_template_readonly` | template column cannot be edited |
 | `table_empty_rows` | number of rows when there is no template (default 10) |
 | `table_numbered` | without a template, column 1 is numbered 1, 2, 3 …; Enter on the last row adds the next number |
+| `table_ask_rows` | on every card without a template a **Rows?** box asks how many rows you want (number + Enter, Esc = keep current rows); offers the last number used |
 | `shortcut_*` | keyboard shortcuts (Alt+N, Alt+I, Alt+M, Alt+., Alt+,, Alt+S, Alt+P, Alt+W); changes apply after restart |
 
 **Template matching** (first found wins):
