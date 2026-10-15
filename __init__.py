@@ -676,7 +676,7 @@ def _on_editor_text(editor) -> None:
     if not cfg()["check_answers"] or not is_dunno(editor.text()):
         return
     table = state["table"]
-    row = editor.property("dn_row")
+    row = _editor_row(editor, table) if table is not None else None
     if table is None or row is None:
         return
     base = table.item(int(row), 0)
@@ -685,6 +685,18 @@ def _on_editor_text(editor) -> None:
     if answer and not editor.property("dn_done"):
         editor.setProperty("dn_done", True)
         QTimer.singleShot(0, lambda: reveal_answer(editor, table, int(row), answer))
+
+
+def _editor_row(editor, table):
+    """Row the editor really sits in (by its position), falling back to the row it was made for."""
+    try:
+        idx = table.indexAt(editor.geometry().center())
+        if idx.isValid():
+            return idx.row()
+    except Exception:
+        pass
+    row = editor.property("dn_row")
+    return int(row) if row is not None else None
 
 
 def _safe_dunno(editor) -> None:
@@ -715,7 +727,7 @@ class CheckDelegate(QStyledItemDelegate):
             and not (ev.modifiers() & _REVIEW_MODS)
         ):
             table = state["table"]
-            row = obj.property("dn_row")
+            row = _editor_row(obj, table)
             if row is not None and table is not None:
                 key = ev.key()
                 if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
