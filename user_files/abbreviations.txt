@@ -1,0 +1,115 @@
+# Deep Notes – skratky pre Check (zaužívané anatomické skratky)
+# skratka = plné slovo        (viac možností oddeľ čiarkou)
+# Bodka nevadí: "lig." = "lig". Stačí jeden tvar slova: "ant" platí pre anterior aj anterius.
+# Začiatok slova funguje vždy aj bez slovníka (pr, sulc, transv …) – slovník je hlavne
+# pre skratky, ktoré nie sú začiatkom slova (tuberc → tuberculum je začiatok, ale napr. ligg nie).
+# Tá istá skratka môže byť aj viackrát – platí každý význam.
+# Riadky s # sú poznámky. Zmeny platia od ďalšej karty, netreba reštart.
+
+# --- väzy, svaly, cievy, nervy ---
+a = arteria
+aa = arteriae
+v = vena
+vv = venae
+n = nervus, nervi
+nn = nervi
+m = musculus, musculi
+mm = musculi
+lig = ligamentum
+ligg = ligamenta
+r = ramus
+rr = rami
+gl = glandula
+tend = tendo, tendinis
+art = articulatio, articularis
+artt = articulationes
+
+# --- útvary ---
+proc = processus
+tuberc = tuberculum
+tub = tuberculum
+tuberos = tuberositas
+for = foramen
+forr = foramina
+fac = facies
+fos = fossa
+inc = incisura
+sulc = sulcus
+cr = crista
+can = canalis
+cap = caput, capitis
+coll = collum
+corp = corpus
+cond = condylus, condylaris
+epic = epicondylus
+emin = eminentia
+lam = lamina
+lin = linea
+marg = margo
+ang = angulus
+fiss = fissura
+sut = sutura
+membr = membrana
+troch = trochanter, trochlea
+mall = malleolus, malleolaris
+prot = protuberantia
+spin = spina, spinosus
+apert = apertura
+caps = capsula
+
+# --- smer a poloha ---
+ant = anterior
+post = posterior
+sup = superior
+inf = inferior
+lat = lateralis
+med = medialis
+prox = proximalis
+dist = distalis
+ext = externus
+int = internus
+prof = profundus
+superf = superficialis
+maj = major
+min = minor
+dx = dexter
+sin = sinister
+dors = dorsalis
+palm = palmaris
+plant = plantaris
+transv = transversus
+long = longitudinalis
+obl = obliquus
+coll = collateralis
+
+# --- kosti ---
+vert = vertebra, vertebralis
+cost = costa, costalis
+stern = sternum, sterni
+scap = scapula
+clav = clavicula
+hum = humerus, humeri
+rad = radius, radialis
+uln = ulna, ulnaris
+fem = femur, femoris
+tib = tibia, tibialis
+fib = fibula, fibularis
+pat = patella
+calc = calcaneus, calcanei
+occ = occipitalis
+front = frontalis
+pariet = parietalis
+temp = temporalis
+sphen = sphenoidalis
+ethm = ethmoidalis
+max = maxilla, maxillaris
+mand = mandibula, mandibulae
+zyg = zygomaticus
+pal = palatinus
+metacarp = metacarpus, metacarpi
+metatars = metatarsus, metatarsi
+phal = phalanx, phalangis
+dig = digitus, digiti
+
+# --- tvoje vlastné (nie sú zaužívané, nechané) ---
+tbc = tuberculum

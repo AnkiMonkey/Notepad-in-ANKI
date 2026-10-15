@@ -3,3 +3,5 @@ __pycache__/
 meta.json
 *.ankiaddon
 *.bak
+user_files/legend_*.json
+user_files/backup_media/
