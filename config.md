@@ -26,7 +26,14 @@ Easiest: the ⚙ Settings button in the panel, `Alt+S`, or Tools → Add-ons →
 | `table_empty_rows` | number of rows when there is no template (default 10) |
 | `table_numbered` | without a template, column 1 is numbered 1, 2, 3 …; Enter on the last row adds the next number |
 | `table_ask_rows` | on every card without a template a **Rows?** box asks how many rows you want (number + Enter, Esc = keep current rows); offers the last number used |
-| `shortcut_*` | keyboard shortcuts (Alt+N, Alt+I, Alt+M, Alt+., Alt+,, Alt+S, Alt+P, Alt+W); changes apply after restart |
+| `remember_zoom` | keep the card zoom (View → Zoom, Ctrl + / Ctrl −) after restarting Anki |
+| `smart_rows` | **Auto rows** (off by default, `Alt+K` or the Auto button): rows come from the card's legend in `user_files/legend_labels.json` (every point incl. 3a, 3b, 2' on its own row); points your teacher does not want get the dash |
+| `smart_notes_field` | field read for `NIE: 4, 6, 8` (dash on those), `NIE: celá karta` (dash on all), `všetky` (none), or a plain list like `1, 3, 7` / `body 1-10` (dash on the rest) |
+| `smart_dash` | text put into skipped rows (default `-`) |
+| `check_answers` | **Check** (off by default, `Alt+J` or the Check button): Enter or a space at the end of your answer compares it with `user_files/legend_answers.json`; green = jumps to the next row (dash rows skipped), red = you stay |
+| `check_ok_color`, `check_bad_color` | colours for correct / wrong (default `#55ff55` / `#ff5555`) |
+| `check_dunno_words`, `check_dunno_color` | typing one of these (`?, idk, neviem, nwm, nv`) writes the correct answer in blue (`#55aaff`) straight away and moves on |
+| `shortcut_*` | keyboard shortcuts (Alt+N, Alt+I, Alt+M, Alt+., Alt+,, Alt+S, Alt+P, Alt+W, Alt+K, Alt+J); changes apply after restart |
 
 **Template matching** (first found wins):
 0. `tag_rules`: tag `Bones` matches `Bones`, `Bones::UpperLimb`, `Bones::LowerLimb::femur` …
@@ -37,3 +44,10 @@ Easiest: the ⚙ Settings button in the panel, `Alt+S`, or Tools → Add-ons →
 **TXT for the table:** one line = one row. Text before the tab goes to column 1, after it (optional) to column 2.
 
 **Typing in the panel:** Anki review keys (Enter, Space, 1–4, letters) never fire while you type in the panel. Table: **Enter** = next row (adds one at the end), **Tab** = next cell, **Esc** = cancel edit / back to the card. **Alt+P** jumps into the panel, **Alt+W** saves the Base column (or the text) as the template for this card (previous file kept as `.bak`).
+
+**Check – what counts as correct:** abbreviations and word starts (`pr transversus`, `tub ant`), the row label typed in front (`3b pr t`), small filler words left out (a, na, do …), one typo in longer words (`corpsu vertebrae`), no diacritics needed. If the legend lists several terms (`processus …, facies …`) one of them is enough. Abbreviations that are not a word start (`tbc`, `ligg`, `mm`) come from `user_files/abbreviations.txt` (`skratka = slovo`, several meanings separated by commas; edits work from the next card).
+
+**Data files for Auto / Check** (`user_files/`, kept on add-on updates, not shipped):
+- `legend_labels.json` – `{"image_legenda.jpg": ["1", "2", "3a", "3b", …]}`
+- `legend_answers.json` – `{"image_legenda.jpg": {"1": "corpus vertebrae", …}}`
+The image is found by its file name in any field of the note (e.g. the Back image).

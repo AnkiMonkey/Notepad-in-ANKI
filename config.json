@@ -13,6 +13,7 @@
   "clear_after_answer": true,
   "auto_focus": false,
   "hide_outside_review": true,
+  "remember_zoom": true,
   "template_dir": "",
   "auto_load_template": true,
   "default_template": "default.txt",
@@ -32,6 +33,14 @@
   "table_empty_rows": 10,
   "table_numbered": true,
   "table_ask_rows": true,
+  "smart_rows": false,
+  "smart_notes_field": "Personal Notes",
+  "smart_dash": "-",
+  "check_answers": false,
+  "check_ok_color": "#55ff55",
+  "check_bad_color": "#ff5555",
+  "check_dunno_color": "#55aaff",
+  "check_dunno_words": "?, idk, neviem, nwm, nv",
   "shortcut_collapse": "Alt+N",
   "shortcut_import": "Alt+I",
   "shortcut_mode": "Alt+M",
@@ -39,5 +48,7 @@
   "shortcut_narrower": "Alt+,",
   "shortcut_settings": "Alt+S",
   "shortcut_focus": "Alt+P",
-  "shortcut_save": "Alt+W"
+  "shortcut_save": "Alt+W",
+  "shortcut_smart": "Alt+K",
+  "shortcut_check": "Alt+J"
 }
