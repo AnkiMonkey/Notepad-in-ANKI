@@ -15,9 +15,10 @@ with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:
     for f in FILES:
         z.write(os.path.join(ROOT, f), f)
     for d in DIRS:
-        for base, _, names in os.walk(os.path.join(ROOT, d)):
+        for base, dirs, names in os.walk(os.path.join(ROOT, d)):
+            dirs[:] = [x for x in dirs if x != "backup_media"]
             for n in names:
-                if n.endswith((".pyc", ".bak")) or n == "meta.json":
+                if n.endswith((".pyc", ".bak")) or n == "meta.json" or n.startswith("legend_"):
                     continue
                 full = os.path.join(base, n)
                 z.write(full, os.path.relpath(full, ROOT))

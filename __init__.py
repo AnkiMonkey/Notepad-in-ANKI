@@ -12,10 +12,19 @@ Features
   Alt+. / Alt+, width, Alt+S settings, Alt+P jump into panel, Alt+W save as template
 - typing in the panel never triggers Anki review keys (Enter, Space, 1-4);
   Enter = next row, Tab = next cell, Esc = back to the card
+- optional "Auto rows" (off by default, toggle with the Auto button or Alt+K):
+  rows are taken from the card's legend (user_files/legend_labels.json, made by OCR)
+  and points your teacher does NOT want ("NIE: 4, 6, 8" in Personal Notes) get "-"
+- optional "Check" (off by default, Check button or Alt+J): Enter or a space at the end
+  of your answer checks it against the legend (user_files/legend_answers.json);
+  green = correct and jumps to the next row, red = wrong and you stay in the cell
 Everything is local, no cloud.
 """
 
+import json
 import os
+import re
+import unicodedata
 
 from aqt import gui_hooks, mw
 from aqt.qt import (
@@ -23,6 +32,7 @@ from aqt.qt import (
     QAbstractItemView,
     QAction,
     QCheckBox,
+    QColor,
     QComboBox,
     QDesktopServices,
     QDialog,
@@ -42,6 +52,7 @@ from aqt.qt import (
     QShortcut,
     QSizePolicy,
     QSpinBox,
+    QStyledItemDelegate,
     QTabWidget,
     Qt,
     QTimer,
@@ -74,6 +85,8 @@ DEFAULTS = {
     "clear_after_answer": True,
     "auto_focus": False,
     "hide_outside_review": True,
+    "remember_zoom": True,
+    "web_zoom": None,
     "template_dir": "",
     "auto_load_template": True,
     "default_template": "default.txt",
@@ -85,6 +98,14 @@ DEFAULTS = {
     "table_empty_rows": 10,
     "table_numbered": True,
     "table_ask_rows": True,
+    "smart_rows": False,
+    "smart_notes_field": "Personal Notes",
+    "smart_dash": "-",
+    "check_answers": False,
+    "check_ok_color": "#55ff55",
+    "check_bad_color": "#ff5555",
+    "check_dunno_color": "#55aaff",
+    "check_dunno_words": "?, idk, neviem, nwm, nv",
     "shortcut_collapse": "Alt+N",
     "shortcut_import": "Alt+I",
     "shortcut_mode": "Alt+M",
@@ -93,6 +114,8 @@ DEFAULTS = {
     "shortcut_settings": "Alt+S",
     "shortcut_focus": "Alt+P",
     "shortcut_save": "Alt+W",
+    "shortcut_smart": "Alt+K",
+    "shortcut_check": "Alt+J",
 }
 
 COLLAPSED_WIDTH = 30
@@ -116,6 +139,10 @@ state = {
     "rows_bar": None,
     "rows_box": None,
     "last_rows": None,
+    "smart_btn": None,
+    "legend_labels": None,
+    "legend_answers": None,
+    "check_btn": None,
 }
 
 
@@ -314,6 +341,8 @@ def confirm_rows() -> None:
     state["last_rows"] = n
     state["rows_bar"].hide()
     fill_numbered(n)
+    if cfg()["smart_rows"] and state.get("card"):
+        apply_dashes(state["card"])
     focus_panel()
 
 
@@ -321,6 +350,420 @@ def skip_rows() -> None:
     """Esc in the 'Rows?' bar: keep the current rows, keyboard back to the card."""
     state["rows_bar"].hide()
     focus_reviewer()
+
+
+# ------------------------------------------------------------- auto rows
+
+def labels_path() -> str:
+    return os.path.join(ADDON_DIR, "user_files", "legend_labels.json")
+
+
+def legend_labels() -> dict:
+    """{image file name: [labels in legend order]}; read once, cached."""
+    if state["legend_labels"] is None:
+        try:
+            with open(labels_path(), encoding="utf-8-sig") as fh:
+                state["legend_labels"] = json.load(fh)
+        except (OSError, ValueError):
+            state["legend_labels"] = {}
+    return state["legend_labels"]
+
+
+def labels_for_card(card):
+    """Labels of the first image on the note that is in legend_labels.json."""
+    known = legend_labels()
+    if not known:
+        return None
+    for value in card.note().values():
+        for src in re.findall(r'src="([^"]+)"', value):
+            if src in known:
+                return list(known[src])
+    return None
+
+
+def _norm_label(s: str) -> str:
+    return re.sub(r"\s+", "", s).replace("’", "'").casefold()
+
+
+def _strip_html(s: str) -> str:
+    s = re.sub(r"<[^>]+>", " ", s or "")
+    return s.replace("&nbsp;", " ")
+
+
+def _tokens(text: str) -> list:
+    """'1, 3-5, 3 (B), 1b' -> ['1', '3', '4', '5', '3(b)', '1b']"""
+    out = []
+    for part in re.split(r"[,;]", text):
+        part = part.strip()
+        if not part:
+            continue
+        rng = re.fullmatch(r"(\d+)\s*[-–—]\s*(\d+)", part)
+        if rng:
+            a, b = int(rng.group(1)), int(rng.group(2))
+            if a <= b and b - a < 200:
+                out += [str(i) for i in range(a, b + 1)]
+            continue
+        out.append(_norm_label(part))
+    return out
+
+
+def _matches(label: str, token: str, labels_norm: set) -> bool:
+    lab = _norm_label(label)
+    if lab == token:
+        return True
+    if token.isdigit():
+        # "6" also covers 6a / 6b when the legend has no plain 6 (2' stays its own point)
+        if token not in labels_norm and re.fullmatch(re.escape(token) + r"[a-z]'?", lab):
+            return True
+    return False
+
+
+def skip_labels(card, labels: list) -> set:
+    """Indexes of rows the teacher does not want, read from the notes field.
+
+    "NIE: 4, 6, 8"   -> those get the dash
+    "NIE: celá karta" -> every row gets the dash
+    "všetky"          -> nothing
+    "body 1-10" / "1, 3, 7" (no NIE) -> everything NOT listed gets the dash
+    """
+    conf = cfg()
+    note = card.note()
+    field = conf["smart_notes_field"]
+    if field not in note.keys():
+        return set()
+    text = _strip_html(note[field]).strip()
+    if not text:
+        return set()
+    low = text.casefold()
+    labels_norm = {_norm_label(x) for x in labels}
+    m = re.search(r"\bnie\b\s*:?\s*(.*)", low, re.S)
+    if m:
+        rest = m.group(1).strip()
+        if re.match(r"cel[áa]", rest) or rest.startswith("nic"):
+            return set(range(len(labels)))
+        toks = _tokens(rest)
+        return {i for i, lab in enumerate(labels) if any(_matches(lab, t, labels_norm) for t in toks)}
+    if re.search(r"v[šs]etk", low):
+        return set()
+    after = low.split(":", 1)[1] if ":" in low else low
+    after = re.sub(r"^\D*?(?=\d)", "", after)
+    toks = _tokens(after)
+    if not toks:
+        return set()
+    return {i for i, lab in enumerate(labels) if not any(_matches(lab, t, labels_norm) for t in toks)}
+
+
+def apply_dashes(card) -> None:
+    """Put the dash into the Notes cell of every row the teacher does not want."""
+    t = state["table"]
+    labels = []
+    for r in range(t.rowCount()):
+        it = t.item(r, 0)
+        labels.append(it.text().strip() if it else "")
+    dash = cfg()["smart_dash"]
+    for r in skip_labels(card, labels):
+        it = t.item(r, 1)
+        if it is None:
+            it = QTableWidgetItem("")
+            t.setItem(r, 1, it)
+        it.setText(dash)
+        it.setForeground(QColor("gray"))
+
+
+def smart_fill(card) -> bool:
+    """Auto rows on: rows from the legend + dashes. False = legend unknown."""
+    labels = labels_for_card(card)
+    if not labels:
+        return False
+    t = state["table"]
+    t.setRowCount(0)
+    for lab in labels:
+        add_row(lab, "", locked=True)
+    apply_dashes(card)
+    t.resizeRowsToContents()
+    return True
+
+
+# ----------------------------------------------------------------- check
+
+STOPWORDS = {"a", "et", "na", "do", "s", "se", "v", "ve", "z", "ze", "pro", "jeho", "jako", "k", "ke", "o", "u"}
+
+
+def legend_answers() -> dict:
+    """{image file name: {label: legend text}}; read once, cached."""
+    if state["legend_answers"] is None:
+        try:
+            with open(os.path.join(ADDON_DIR, "user_files", "legend_answers.json"), encoding="utf-8-sig") as fh:
+                state["legend_answers"] = json.load(fh)
+        except (OSError, ValueError):
+            state["legend_answers"] = {}
+    return state["legend_answers"]
+
+
+def answers_for_card(card) -> dict:
+    known = legend_answers()
+    if not known or card is None:
+        return {}
+    for value in card.note().values():
+        for src in re.findall(r'src="([^"]+)"', value):
+            if src in known:
+                return known[src]
+    return {}
+
+
+def _plain(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s.casefold())
+    return "".join(ch for ch in s if not unicodedata.combining(ch))
+
+
+def _words(s: str) -> list:
+    return re.findall(r"[a-z0-9]+", _plain(s))
+
+
+def _close(a: str, b: str) -> bool:
+    """One typo allowed in longer words (missing, extra or wrong letter)."""
+    if abs(len(a) - len(b)) > 1 or min(len(a), len(b)) < 5:
+        return False
+    if len(a) == len(b):
+        diff = [i for i in range(len(a)) if a[i] != b[i]]
+        if len(diff) == 2 and diff[1] == diff[0] + 1 and a[diff[0]] == b[diff[1]] and a[diff[1]] == b[diff[0]]:
+            return True  # two swapped letters (corpsu)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1] <= 1
+
+
+_ABBR = {"mtime": None, "map": {}}
+
+
+def abbreviations() -> dict:
+    """user_files/abbreviations.txt: 'tbc = tuberculum', 'v = vertebra, vena'.
+    Re-read when the file changes, so edits work without restarting Anki."""
+    path = os.path.join(ADDON_DIR, "user_files", "abbreviations.txt")
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return {}
+    if mtime != _ABBR["mtime"]:
+        mapping = {}
+        try:
+            with open(path, encoding="utf-8-sig") as fh:
+                for line in fh:
+                    line = line.split("#", 1)[0].strip()
+                    if "=" not in line:
+                        continue
+                    key, _, vals = line.partition("=")
+                    key = "".join(_words(key))
+                    for v in vals.split(","):
+                        w = "".join(_words(v))
+                        if key and w:
+                            mapping.setdefault(key, set()).add(w)
+        except OSError:
+            pass
+        _ABBR["mtime"], _ABBR["map"] = mtime, mapping
+    return _ABBR["map"]
+
+
+def _same_stem(a: str, b: str) -> bool:
+    """anterior ~ anterius, transversus ~ transversarium, vertebra ~ vertebrae."""
+    n = 0
+    for x, y in zip(a, b):
+        if x != y:
+            break
+        n += 1
+    return n == min(len(a), len(b)) or n >= max(4, min(len(a), len(b)) - 3)
+
+
+def _word_ok(typed: str, real: str) -> bool:
+    if real.startswith(typed) or _close(typed, real):
+        return True
+    return any(_same_stem(full, real) for full in abbreviations().get(typed, ()))
+
+
+def _covers(typed: list, real: list) -> bool:
+    """Every typed word fits the next legend word (abbreviation, full word or one typo);
+    only small filler words (a, na, do ...) of the legend may be left out."""
+    i = 0
+    for w in real:
+        if i < len(typed) and _word_ok(typed[i], w):
+            i += 1
+        elif w in STOPWORDS:
+            continue
+        else:
+            return False
+    return i == len(typed)
+
+
+def _variants(answer: str) -> list:
+    """Whole text, text without (brackets), and every part split by , ; or ' a ' / ' et '."""
+    out = []
+    base = [answer, re.sub(r"\([^)]*\)", " ", answer)]
+    for b in base:
+        out.append(b)
+        out += re.split(r"[,;]| a | et ", b)
+    return [v for v in (_words(x) for x in out) if v]
+
+
+def answer_ok(typed: str, answer: str, label: str = "") -> bool:
+    words = _words(typed)
+    if words and label and words[0] == _plain(re.sub(r"\W", "", label)):
+        words = words[1:]  # "3b pr transversus" -> label typed in front is fine
+    if not words:
+        return False
+    return any(_covers(words, v) for v in _variants(answer))
+
+
+def check_editor(editor, table, row: int, via_enter: bool) -> bool:
+    """Returns True when the key was handled (answer known for this row)."""
+    conf = cfg()
+    base = table.item(row, 0)
+    label = base.text().strip() if base else ""
+    answer = answers_for_card(state.get("card")).get(label)
+    if not answer:
+        return False
+    text = editor.text().strip()
+    if is_dunno(text):
+        reveal_answer(editor, table, row, answer)
+        return True
+    if answer_ok(text, answer, label):
+        item = table.item(row, 1)
+        if item is None:
+            item = QTableWidgetItem("")
+            table.setItem(row, 1, item)
+        item.setText(text)
+        item.setForeground(QColor(conf["check_ok_color"]))
+        item.setToolTip(answer)
+        editor.setStyleSheet(f"color: {conf['check_ok_color']};")
+        table.done_editing(editor)
+        QTimer.singleShot(0, table.next_row)
+        return True
+    editor.setStyleSheet(f"color: {conf['check_bad_color']};")
+    if via_enter:
+        item = table.item(row, 1)
+        if item is not None:
+            item.setForeground(QColor(conf["check_bad_color"]))
+    return True
+
+
+def is_dunno(text: str) -> bool:
+    words = [w.strip().casefold() for w in str(cfg()["check_dunno_words"]).split(",") if w.strip()]
+    return text.strip().casefold() in words
+
+
+def reveal_answer(editor, table, row: int, answer: str) -> None:
+    """'?' / idk / neviem: write the correct answer in blue and go on."""
+    conf = cfg()
+    item = table.item(row, 1)
+    if item is None:
+        item = QTableWidgetItem("")
+        table.setItem(row, 1, item)
+    editor.setText(answer)
+    item.setText(answer)
+    item.setForeground(QColor(conf["check_dunno_color"]))
+    item.setToolTip(answer)
+    table.done_editing(editor)
+    item.setText(answer)
+    item.setForeground(QColor(conf["check_dunno_color"]))
+    QTimer.singleShot(0, table.next_row)
+
+
+def _on_editor_text(editor) -> None:
+    """'?', idk, neviem ... reveal the answer as soon as they are typed (no Enter needed)."""
+    if not cfg()["check_answers"] or not is_dunno(editor.text()):
+        return
+    table = state["table"]
+    row = editor.property("dn_row")
+    if table is None or row is None:
+        return
+    base = table.item(int(row), 0)
+    label = base.text().strip() if base else ""
+    answer = answers_for_card(state.get("card")).get(label)
+    if answer and not editor.property("dn_done"):
+        editor.setProperty("dn_done", True)
+        QTimer.singleShot(0, lambda: reveal_answer(editor, table, int(row), answer))
+
+
+def _safe_dunno(editor) -> None:
+    try:
+        if editor.property("dn_done"):
+            return
+        _on_editor_text(editor)
+    except RuntimeError:
+        pass  # editor already closed
+
+
+class CheckDelegate(QStyledItemDelegate):
+    """Editor for the Notes column: Enter / space at the end checks the answer."""
+
+    def createEditor(self, parent, option, index):
+        ed = super().createEditor(parent, option, index)
+        if index.column() == 1 and isinstance(ed, QLineEdit):
+            ed.installEventFilter(self)
+            ed.setProperty("dn_row", index.row())
+            ed.textEdited.connect(lambda _t, e=ed: _on_editor_text(e))
+        return ed
+
+    def eventFilter(self, obj, ev):
+        if (
+            ev.type() == QEvent.Type.KeyPress
+            and isinstance(obj, QLineEdit)
+            and cfg()["check_answers"]
+            and not (ev.modifiers() & _REVIEW_MODS)
+        ):
+            table = state["table"]
+            row = obj.property("dn_row")
+            if row is not None and table is not None:
+                key = ev.key()
+                if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                    if check_editor(obj, table, int(row), True):
+                        return True
+                elif key == Qt.Key.Key_Space and obj.cursorPosition() == len(obj.text()):
+                    obj.insert(" ")
+                    check_editor(obj, table, int(row), False)
+                    return True
+                else:
+                    if obj.styleSheet():
+                        obj.setStyleSheet("")  # typing again: back to normal colour
+                    # after the key is in the text: '?', idk, neviem ... reveal at once
+                    QTimer.singleShot(0, lambda e=obj: _safe_dunno(e))
+        return super().eventFilter(obj, ev)
+
+
+def toggle_check() -> None:
+    new = not cfg()["check_answers"]
+    save_cfg(check_answers=new)
+    update_check_btn()
+    tooltip(f"Deep Notes: check {'ON' if new else 'OFF'}")
+
+
+def update_check_btn() -> None:
+    b = state.get("check_btn")
+    if b:
+        on = bool(cfg()["check_answers"])
+        b.setChecked(on)
+        b.setText("Check ✓" if on else "Check")
+
+
+def toggle_smart() -> None:
+    new = not cfg()["smart_rows"]
+    save_cfg(smart_rows=new)
+    update_smart_btn()
+    card = mw.reviewer.card if mw.state == "review" else None
+    if card and state["dock"]:
+        load_for_card(card)
+    tooltip(f"Deep Notes: auto rows {'ON' if new else 'OFF'}")
+
+
+def update_smart_btn() -> None:
+    b = state.get("smart_btn")
+    if b:
+        on = bool(cfg()["smart_rows"])
+        b.setChecked(on)
+        b.setText("Auto ✓" if on else "Auto")
 
 
 def _table_has_base() -> bool:
@@ -347,6 +790,8 @@ def load_for_card(card) -> None:
     if cfg()["mode"] == "table":
         if path:
             fill_table(text)
+        elif cfg()["smart_rows"] and smart_fill(card):
+            pass
         else:
             if not _table_has_base():
                 fill_table("")
@@ -365,6 +810,7 @@ def clear_mine() -> None:
             it = t.item(r, 1)
             if it:
                 it.setText("")
+                it.setData(Qt.ItemDataRole.ForegroundRole, None)
         # drop extra rows that are now completely empty (keeps numbered rows)
         for r in range(t.rowCount() - 1, int(cfg()["table_empty_rows"]) - 1, -1):
             base = t.item(r, 0)
@@ -622,8 +1068,24 @@ class PanelTable(QTableWidget):
         if hint == QAbstractItemDelegate.EndEditHint.SubmitModelCache:
             self.next_row()
 
+    def done_editing(self, editor):
+        """Close the editor without our own 'Enter = next row' (check moves itself)."""
+        self.commitData(editor)
+        QAbstractItemView.closeEditor(self, editor, QAbstractItemDelegate.EndEditHint.NoHint)
+
     def next_row(self):
         r, c = self.currentRow(), max(0, self.currentColumn())
+        if cfg()["check_answers"]:
+            dash = cfg()["smart_dash"]
+            nxt = r + 1
+            while nxt < self.rowCount():
+                it = self.item(nxt, 1)
+                if not (it and dash and it.text().strip() == dash):
+                    break
+                nxt += 1
+            if nxt >= self.rowCount():
+                return  # last row done: stay, no extra empty row
+            r = nxt - 1
         if r + 1 >= self.rowCount():
             add_row()
         r += 1
@@ -725,6 +1187,26 @@ def create_dock() -> None:
     actions.addWidget(mode_btn)
     state["mode_btn"] = mode_btn
     actions.addWidget(_btn("Save template", f"Save as the template for this card ({conf['shortcut_save']})", save_template))
+    smart_btn = _btn(
+        "Auto",
+        "Auto rows from the legend + '-' for points the teacher does not want "
+        f"(NIE: … in {conf['smart_notes_field']}). On / off ({conf['shortcut_smart']})",
+        toggle_smart,
+    )
+    smart_btn.setCheckable(True)
+    actions.addWidget(smart_btn)
+    state["smart_btn"] = smart_btn
+    update_smart_btn()
+    check_btn = _btn(
+        "Check",
+        "Enter or a space at the end checks the answer against the legend: "
+        f"green = next row, red = stay ({conf['shortcut_check']})",
+        toggle_check,
+    )
+    check_btn.setCheckable(True)
+    actions.addWidget(check_btn)
+    state["check_btn"] = check_btn
+    update_check_btn()
     actions.addStretch()
 
     if conf["show_logo"]:
@@ -806,6 +1288,7 @@ def create_dock() -> None:
     table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
     table.verticalHeader().setVisible(False)
     table.setWordWrap(True)
+    table.setItemDelegate(CheckDelegate(table))
     table.setEditTriggers(
         QAbstractItemView.EditTrigger.DoubleClicked
         | QAbstractItemView.EditTrigger.EditKeyPressed
@@ -843,6 +1326,8 @@ SHORTCUT_ACTIONS = [
     ("shortcut_settings", "Settings", lambda: open_settings()),
     ("shortcut_focus", "Jump into panel", lambda: focus_panel()),
     ("shortcut_save", "Save template", lambda: save_template()),
+    ("shortcut_smart", "Auto rows on / off", lambda: toggle_smart()),
+    ("shortcut_check", "Check on / off", lambda: toggle_check()),
 ]
 
 
@@ -931,6 +1416,8 @@ SPEC = [
      "Keep the last width after restarting Anki."),
     ("Panel", "hide_outside_review", "Hide outside review", "bool", None,
      "Hide the panel on the deck list and in the browser."),
+    ("Panel", "remember_zoom", "Remember card zoom", "bool", None,
+     "Keeps the zoom of the card (View > Zoom, Ctrl + / Ctrl -) after restarting Anki."),
     ("Panel", "show_logo", "Show logo", "bool", None,
      "AnkiMonkey logo in the toolbar. Takes effect after restarting Anki."),
     ("Panel", "logo_height", "Logo height (px)", "int", (12, 200),
@@ -969,6 +1456,24 @@ SPEC = [
     ("Table", "table_ask_rows", "Ask for row count", "bool", None,
      "On every card without a template a 'Rows?' box appears above the table: "
      "type a number + Enter. Esc keeps the current rows. It offers the last number you used."),
+    ("Table", "smart_rows", "Auto rows from legend", "bool", None,
+     "Off = works as before. On = rows come from the card's legend (user_files/legend_labels.json, "
+     "every point incl. 3a, 3b, 2' on its own row) and points the teacher does not want get the dash. "
+     "Cards not in the file still ask 'Rows?', then get the dashes. Also the Auto button / Alt+K."),
+    ("Table", "smart_notes_field", "Field with 'NIE: …'", "str", None,
+     "Field read for 'NIE: 4, 6, 8', 'NIE: celá karta' or 'všetky'."),
+    ("Table", "smart_dash", "Dash text", "str", None, "What goes into skipped rows."),
+    ("Table", "check_answers", "Check answers", "bool", None,
+     "Enter or a space at the end of your answer compares it with the legend "
+     "(user_files/legend_answers.json). Abbreviations (pr transversus), missing a/na/do "
+     "and one typo in longer words are fine. Green = jumps to the next row "
+     "(rows with the dash are skipped), red = you stay. Also the Check button / Alt+J."),
+    ("Table", "check_ok_color", "Correct colour", "str", None, ""),
+    ("Table", "check_bad_color", "Wrong colour", "str", None, ""),
+    ("Table", "check_dunno_words", "\"I don't know\" words", "str", None,
+     "Typing one of these (comma separated) writes the correct answer in blue straight away "
+     "and moves on."),
+    ("Table", "check_dunno_color", "\"I don't know\" colour", "str", None, ""),
     ("Shortcuts", "shortcut_collapse", "Collapse / expand", "str", None,
      "Changes apply the next time you start reviewing. Avoid Alt+F/E/V/T/H (menus) "
      "and keys Anki uses in review (Space, Enter, 1-4, E, R, *, -, =, @, !, Ctrl+1-7)."),
@@ -981,6 +1486,8 @@ SPEC = [
      "In table mode jumps to the first empty Notes cell. Esc gives the keyboard back to the card."),
     ("Shortcuts", "shortcut_save", "Save as template", "str", None,
      "Saves the Base column (or the text) as the template for this card; the old file is kept as .bak."),
+    ("Shortcuts", "shortcut_smart", "Auto rows on / off", "str", None, ""),
+    ("Shortcuts", "shortcut_check", "Check on / off", "str", None, ""),
 ]
 
 
@@ -1188,6 +1695,8 @@ def apply_settings() -> None:
     headers = list(conf["table_headers"]) + ["", ""]
     state["table"].setHorizontalHeaderLabels(headers[:2])
     apply_mode()
+    update_smart_btn()
+    update_check_btn()
     if state["body"].isVisible():
         set_width(conf["dock_width"])
     card = mw.reviewer.card if mw.state == "review" else None
@@ -1198,6 +1707,9 @@ def apply_settings() -> None:
 # ------------------------------------------------------------------ hooks
 
 def on_show_question(card) -> None:
+    if not state.get("zoom_done"):
+        state["zoom_done"] = True
+        restore_zoom()
     create_dock()
     state["dock"].show()
     QTimer.singleShot(500, check_shortcut_clashes)
@@ -1217,11 +1729,44 @@ def on_answer(reviewer, card, ease) -> None:
 
 
 def on_state_change(new_state, old_state) -> None:
+    save_zoom()
     if state["dock"] and cfg()["hide_outside_review"] and new_state != "review":
         state["dock"].hide()
 
 
+# ------------------------------------------------------------------ zoom
+
+def save_zoom() -> None:
+    """Remember the card zoom (View > Zoom, Ctrl + / Ctrl -)."""
+    if not cfg()["remember_zoom"]:
+        return
+    try:
+        z = round(float(mw.web.zoomFactor()), 2)
+    except Exception:
+        return
+    if z > 0 and z != cfg().get("web_zoom"):
+        save_cfg(web_zoom=z)
+
+
+def restore_zoom() -> None:
+    z = cfg().get("web_zoom")
+    if not cfg()["remember_zoom"] or not z:
+        return
+    try:
+        if abs(float(mw.web.zoomFactor()) - float(z)) > 0.001:
+            mw.web.setZoomFactor(float(z))
+    except Exception:
+        pass
+
+
+def on_profile_open() -> None:
+    # Anki sets its own zoom while starting; ours goes on top of it
+    QTimer.singleShot(800, restore_zoom)
+    QTimer.singleShot(2500, restore_zoom)
+
+
 def on_profile_close() -> None:
+    save_zoom()
     dock = state["dock"]
     if dock and state["body"].isVisible() and cfg()["remember_width"]:
         save_cfg(dock_width=dock.width())
@@ -1232,5 +1777,6 @@ gui_hooks.reviewer_did_show_question.append(on_show_question)
 gui_hooks.reviewer_did_answer_card.append(on_answer)
 gui_hooks.state_did_change.append(on_state_change)
 gui_hooks.profile_will_close.append(on_profile_close)
+gui_hooks.profile_did_open.append(on_profile_open)
 gui_hooks.main_window_did_init.append(add_menu)
 mw.addonManager.setConfigAction(ADDON_KEY, open_settings)
