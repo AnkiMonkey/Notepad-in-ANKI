@@ -106,6 +106,8 @@ DEFAULTS = {
     "check_bad_color": "#ff5555",
     "check_dunno_color": "#55aaff",
     "check_dunno_words": "?, idk, neviem, nwm, nv",
+    "check_long_words": 4,
+    "check_long_percent": 30,
     "shortcut_collapse": "Alt+N",
     "shortcut_import": "Alt+I",
     "shortcut_mode": "Alt+M",
@@ -614,7 +616,22 @@ def answer_ok(typed: str, answer: str, label: str = "") -> bool:
         words = words[1:]  # "3b pr transversus" -> label typed in front is fine
     if not words:
         return False
-    return any(_covers(words, v) for v in _variants(answer))
+    if any(_covers(words, v) for v in _variants(answer)):
+        return True
+    return _long_ok(words, answer)
+
+
+def _long_ok(typed: list, answer: str) -> bool:
+    """Long legend text (more than check_long_words words): enough when more than
+    check_long_percent % of its words are in your answer (any order) and at least
+    half of what you typed really belongs to it."""
+    conf = cfg()
+    real = [w for w in _words(re.sub(r"\([^)]*\)", " ", answer)) if w not in STOPWORDS]
+    if len(real) <= int(conf["check_long_words"]):
+        return False
+    hit = sum(1 for w in real if any(_word_ok(t, w) for t in typed))
+    good = sum(1 for t in typed if any(_word_ok(t, w) for w in real))
+    return hit / len(real) * 100 > float(conf["check_long_percent"]) and good * 2 >= len(typed)
 
 
 def check_editor(editor, table, row: int, via_enter: bool) -> bool:
@@ -629,6 +646,10 @@ def check_editor(editor, table, row: int, via_enter: bool) -> bool:
     if is_dunno(text):
         reveal_answer(editor, table, row, answer)
         return True
+    if via_enter and text and editor.property("dn_wrong") == text:
+        # Enter again on the same wrong answer = "I don't know"
+        reveal_answer(editor, table, row, answer, tried=text)
+        return True
     if answer_ok(text, answer, label):
         item = table.item(row, 1)
         if item is None:
@@ -642,10 +663,9 @@ def check_editor(editor, table, row: int, via_enter: bool) -> bool:
         QTimer.singleShot(0, table.next_row)
         return True
     editor.setStyleSheet(f"color: {conf['check_bad_color']};")
-    if via_enter:
-        item = table.item(row, 1)
-        if item is not None:
-            item.setForeground(QColor(conf["check_bad_color"]))
+    # only the editor turns red: touching the cell itself while editing would make Qt
+    # reload the cell into the editor and wipe what you typed
+    editor.setProperty("dn_wrong", text)  # Enter again (or 2 spaces) = "I don't know"
     return True
 
 
@@ -654,8 +674,9 @@ def is_dunno(text: str) -> bool:
     return text.strip().casefold() in words
 
 
-def reveal_answer(editor, table, row: int, answer: str) -> None:
-    """'?' / idk / neviem: write the correct answer in blue and go on."""
+def reveal_answer(editor, table, row: int, answer: str, tried: str = "") -> None:
+    """'?' / idk / neviem / second Enter: write the correct answer in blue and go on
+    (what you tried is kept in the tooltip)."""
     conf = cfg()
     item = table.item(row, 1)
     if item is None:
@@ -664,7 +685,7 @@ def reveal_answer(editor, table, row: int, answer: str) -> None:
     editor.setText(answer)
     item.setText(answer)
     item.setForeground(QColor(conf["check_dunno_color"]))
-    item.setToolTip(answer)
+    item.setToolTip(f"you wrote: {tried}" if tried else answer)
     table.done_editing(editor)
     item.setText(answer)
     item.setForeground(QColor(conf["check_dunno_color"]))
@@ -734,6 +755,14 @@ class CheckDelegate(QStyledItemDelegate):
                     if check_editor(obj, table, int(row), True):
                         return True
                 elif key == Qt.Key.Key_Space and obj.cursorPosition() == len(obj.text()):
+                    if obj.text().endswith(" ") and obj.text().strip():
+                        # two spaces = "I don't know": show the answer
+                        base = table.item(int(row), 0)
+                        label = base.text().strip() if base else ""
+                        answer = answers_for_card(state.get("card")).get(label)
+                        if answer:
+                            reveal_answer(obj, table, int(row), answer, tried=obj.text().strip())
+                            return True
                     obj.insert(" ")
                     check_editor(obj, table, int(row), False)
                     return True
@@ -1485,7 +1514,12 @@ SPEC = [
     ("Table", "check_dunno_words", "\"I don't know\" words", "str", None,
      "Typing one of these (comma separated) writes the correct answer in blue straight away "
      "and moves on."),
-    ("Table", "check_dunno_color", "\"I don't know\" colour", "str", None, ""),
+    ("Table", "check_dunno_color", "\"I don't know\" colour", "str", None,
+     "Also used for Enter pressed again on a wrong (red) answer, or two spaces at the end."),
+    ("Table", "check_long_words", "Long answer from (words)", "int", (1, 50),
+     "Legend text with more words than this counts as long."),
+    ("Table", "check_long_percent", "Long answer: % enough", "int", (1, 100),
+     "For a long legend text it is enough when more than this % of its words are in your answer."),
     ("Shortcuts", "shortcut_collapse", "Collapse / expand", "str", None,
      "Changes apply the next time you start reviewing. Avoid Alt+F/E/V/T/H (menus) "
      "and keys Anki uses in review (Space, Enter, 1-4, E, R, *, -, =, @, !, Ctrl+1-7)."),

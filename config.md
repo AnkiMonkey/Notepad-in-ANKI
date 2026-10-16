@@ -33,6 +33,8 @@ Easiest: the ⚙ Settings button in the panel, `Alt+S`, or Tools → Add-ons →
 | `check_answers` | **Check** (off by default, `Alt+J` or the Check button): Enter or a space at the end of your answer compares it with `user_files/legend_answers.json`; green = jumps to the next row (dash rows skipped), red = you stay |
 | `check_ok_color`, `check_bad_color` | colours for correct / wrong (default `#55ff55` / `#ff5555`) |
 | `check_dunno_words`, `check_dunno_color` | typing one of these (`?, idk, neviem, nwm, nv`) writes the correct answer in blue (`#55aaff`) straight away and moves on |
+| `check_long_words`, `check_long_percent` | legend text longer than 4 words: more than 30 % of its words in your answer is enough (any order, at least half of what you typed must fit) |
+| wrong answer | stays red and stays in the cell; **Enter again** or **two spaces** = "I don't know" → correct answer in blue, your try kept in the tooltip |
 | `shortcut_*` | keyboard shortcuts (Alt+N, Alt+I, Alt+M, Alt+., Alt+,, Alt+S, Alt+P, Alt+W, Alt+K, Alt+J); changes apply after restart |
 
 **Template matching** (first found wins):

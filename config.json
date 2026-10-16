@@ -41,6 +41,8 @@
   "check_bad_color": "#ff5555",
   "check_dunno_color": "#55aaff",
   "check_dunno_words": "?, idk, neviem, nwm, nv",
+  "check_long_words": 4,
+  "check_long_percent": 30,
   "shortcut_collapse": "Alt+N",
   "shortcut_import": "Alt+I",
   "shortcut_mode": "Alt+M",
