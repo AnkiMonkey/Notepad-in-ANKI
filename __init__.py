@@ -144,6 +144,7 @@ state = {
     "smart_btn": None,
     "legend_labels": None,
     "legend_answers": None,
+    "legend_answers_full": None,
     "check_btn": None,
 }
 
@@ -502,6 +503,29 @@ def legend_answers() -> dict:
     return state["legend_answers"]
 
 
+def legend_answers_full() -> dict:
+    """Optional legend_answers_full.json: the complete legend wording. Your answer may match
+    either the short practical form (legend_answers.json) or this full one."""
+    if state["legend_answers_full"] is None:
+        try:
+            with open(os.path.join(ADDON_DIR, "user_files", "legend_answers_full.json"), encoding="utf-8-sig") as fh:
+                state["legend_answers_full"] = json.load(fh)
+        except (OSError, ValueError):
+            state["legend_answers_full"] = {}
+    return state["legend_answers_full"]
+
+
+def full_answer_for(card, label: str) -> str:
+    known = legend_answers_full()
+    if not known or card is None:
+        return ""
+    for value in card.note().values():
+        for src in re.findall(r'src="([^"]+)"', value):
+            if src in known:
+                return known[src].get(label, "")
+    return ""
+
+
 def answers_for_card(card) -> dict:
     known = legend_answers()
     if not known or card is None:
@@ -623,8 +647,8 @@ def answer_ok(typed: str, answer: str, label: str = "") -> bool:
 
 def _long_ok(typed: list, answer: str) -> bool:
     """Long legend text (more than check_long_words words): enough when more than
-    check_long_percent % of its words are in your answer (any order) and at least
-    half of what you typed really belongs to it."""
+    check_long_percent % of its words are in your answer (any order) and every
+    word you typed belongs to it."""
     conf = cfg()
     # Czech/Slovak words (with diacritics: část, odpovídající …) don't count – the answer is the Latin
     raw = re.findall(r"\w+", re.sub(r"\([^)]*\)", " ", answer).casefold())
@@ -633,7 +657,8 @@ def _long_ok(typed: list, answer: str) -> bool:
         return False
     hit = sum(1 for w in real if any(_word_ok(t, w) for t in typed))
     good = sum(1 for t in typed if any(_word_ok(t, w) for w in real))
-    return hit / len(real) * 100 > float(conf["check_long_percent"]) and good * 2 >= len(typed)
+    # every word you typed must belong to the legend text (so "longi" never passes for "brevis")
+    return hit / len(real) * 100 > float(conf["check_long_percent"]) and good == len(typed)
 
 
 def check_editor(editor, table, row: int, via_enter: bool) -> bool:
@@ -652,14 +677,15 @@ def check_editor(editor, table, row: int, via_enter: bool) -> bool:
         # Enter again on the same wrong answer = "I don't know"
         reveal_answer(editor, table, row, answer, tried=text)
         return True
-    if answer_ok(text, answer, label):
+    full = full_answer_for(state.get("card"), label)
+    if answer_ok(text, answer, label) or (full and full != answer and answer_ok(text, full, label)):
         item = table.item(row, 1)
         if item is None:
             item = QTableWidgetItem("")
             table.setItem(row, 1, item)
         item.setText(text)
         item.setForeground(QColor(conf["check_ok_color"]))
-        item.setToolTip(answer)
+        item.setToolTip(full or answer)
         editor.setStyleSheet(f"color: {conf['check_ok_color']};")
         table.done_editing(editor)
         QTimer.singleShot(0, table.next_row)
@@ -687,7 +713,11 @@ def reveal_answer(editor, table, row: int, answer: str, tried: str = "") -> None
     editor.setText(answer)
     item.setText(answer)
     item.setForeground(QColor(conf["check_dunno_color"]))
-    item.setToolTip(f"you wrote: {tried}" if tried else answer)
+    full = full_answer_for(state.get("card"), table.item(row, 0).text().strip() if table.item(row, 0) else "")
+    tip = full if full and full != answer else ""
+    if tried:
+        tip = (tip + "\n" if tip else "") + f"you wrote: {tried}"
+    item.setToolTip(tip or answer)
     table.done_editing(editor)
     item.setText(answer)
     item.setForeground(QColor(conf["check_dunno_color"]))
