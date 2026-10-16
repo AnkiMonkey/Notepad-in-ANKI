@@ -626,7 +626,9 @@ def _long_ok(typed: list, answer: str) -> bool:
     check_long_percent % of its words are in your answer (any order) and at least
     half of what you typed really belongs to it."""
     conf = cfg()
-    real = [w for w in _words(re.sub(r"\([^)]*\)", " ", answer)) if w not in STOPWORDS]
+    # Czech/Slovak words (with diacritics: část, odpovídající …) don't count – the answer is the Latin
+    raw = re.findall(r"\w+", re.sub(r"\([^)]*\)", " ", answer).casefold())
+    real = [_plain(w) for w in raw if w.isascii() and _plain(w) not in STOPWORDS]
     if len(real) <= int(conf["check_long_words"]):
         return False
     hit = sum(1 for w in real if any(_word_ok(t, w) for t in typed))
