@@ -52,4 +52,5 @@ Easiest: the ⚙ Settings button in the panel, `Alt+S`, or Tools → Add-ons →
 **Data files for Auto / Check** (`user_files/`, kept on add-on updates, not shipped):
 - `legend_labels.json` – `{"image_legenda.jpg": ["1", "2", "3a", "3b", …]}`
 - `legend_answers.json` – `{"image_legenda.jpg": {"1": "corpus vertebrae", …}}`
+- `legend_answers_full.json` (optional) – same shape with the complete legend wording; `legend_answers.json` then holds the short practical form. An answer matching either one is green, the reveal shows the short form, the tooltip the full one.
 The image is found by its file name in any field of the note (e.g. the Back image).
