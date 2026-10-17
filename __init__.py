@@ -49,6 +49,7 @@ from aqt.qt import (
     QLineEdit,
     QPixmap,
     QPushButton,
+    QScrollArea,
     QShortcut,
     QSizePolicy,
     QSpinBox,
@@ -1592,7 +1593,11 @@ class SettingsDialog(QDialog):
             if tab not in forms:
                 page = QWidget()
                 form = QFormLayout(page)
-                tabs.addTab(page, tab)
+                scroll = QScrollArea()
+                scroll.setWidgetResizable(True)
+                scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+                scroll.setWidget(page)
+                tabs.addTab(scroll, tab)
                 forms[tab] = form
                 if tab == "Templates":
                     self._rules_box(form)
@@ -1609,6 +1614,19 @@ class SettingsDialog(QDialog):
         buttons.accepted.connect(self.save)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        self._fit_to_screen()
+
+    def _fit_to_screen(self):
+        # never taller/wider than the monitor -> tabs scroll, Save stays visible
+        screen = (self.parent() or mw).screen() if hasattr(self.parent() or mw, "screen") else None
+        if screen is None:
+            return
+        geo = screen.availableGeometry()
+        w = min(max(560, int(geo.width() * 0.45)), geo.width() - 40, 760)
+        h = min(int(geo.height() * 0.80), 700)
+        self.setMaximumHeight(geo.height() - 40)
+        self.resize(w, h)
+        self.move(geo.x() + (geo.width() - w) // 2, geo.y() + (geo.height() - h) // 2)
 
     # ---- widgets
     def _value(self, key):
