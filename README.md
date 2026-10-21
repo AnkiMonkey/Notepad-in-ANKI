@@ -17,7 +17,6 @@ Scratchpad panel for the Anki reviewer. Write your answer before you flip the ca
 - Adjustable width, collapse, settings window
 - Keyboard-safe: typing never flips the card, `Esc` = back to card
 - Local only, no cloud
-- **Phone / tablet** (AnkiDroid): Auto rows + Check as card-template JS, PC add-on untouched → [mobile/](mobile/README.md)
 
 ## Shortcuts
 
