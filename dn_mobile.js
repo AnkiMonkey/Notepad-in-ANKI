@@ -99,13 +99,50 @@
     return hit / real.length * 100 > LONG_PCT && good === typed.length;
   }
 
+  // genitive attribute optional both ways: "corpus" = "corpus vertebrae"; a different genitive stays wrong
+  var GEN_IS = ["ossis", "femoris", "capitis", "pelvis", "corporis", "pectoris", "dentis", "partis",
+    "marginis", "tuberis", "foraminis", "cartilaginis", "laminae", "cruris", "pedis", "auris", "oris",
+    "nasi", "cordis", "renis", "lienis", "hepatis", "colli", "manus", "cranii", "orbitae", "sellae",
+    "processus", "tuberositatis", "arcus", "musculi", "nervi", "arteriae", "venae", "ligamenti",
+    "sinus", "canalis", "sulci", "fossae"];
+  function genStart(ws) {
+    for (var k = 1; k < ws.length; k++) {
+      var x = ws[k];
+      if (GEN_IS.indexOf(x) >= 0 || /(ae|orum|arum|ium|uum|ei)$/.test(x) || (x.length > 3 && /i$/.test(x))) return k;
+    }
+    return 0;
+  }
+  function genOk(w, answer) {
+    var aw = words(answer), i = genStart(aw), j = genStart(w), k, vs;
+    if (i) {
+      vs = variants(aw.slice(0, i).join(" "));
+      for (k = 0; k < vs.length; k++) if (covers(w, vs[k])) return true;
+    }
+    if (j) {
+      vs = variants(answer);
+      for (k = 0; k < vs.length; k++) if (covers(w.slice(0, j), vs[k])) return true;
+    }
+    return false;
+  }
+
+  // SIAS, SIAI, SIPS, SIPI … from Deep Notes settings (check_abbrev), both in your answer and in the legend
+  function expandAbbrev(t) {
+    var ab = CFG.check_abbrev || {};
+    Object.keys(ab).forEach(function (k) {
+      var re = new RegExp("(^|[^\\p{L}\\p{N}])" + k.replace(/[.*+?^$()|[\]\\]/g, "\\$&") + "(?![\\p{L}\\p{N}])", "giu");
+      t = t.replace(re, function (m, pre) { return pre + ab[k]; });
+    });
+    return t;
+  }
+
   function answerOk(typed, answer, label) {
+    typed = expandAbbrev(typed); answer = expandAbbrev(answer);
     var w = words(typed);
     if (w.length && label && w[0] === plain(label.replace(/[^\p{L}\p{N}_]/gu, ""))) w = w.slice(1);
     if (!w.length) return false;
     var vs = variants(answer);
     for (var i = 0; i < vs.length; i++) if (covers(w, vs[i])) return true;
-    return longOk(w, answer);
+    return genOk(w, answer) || longOk(w, answer);
   }
 
   function isDunno(text) {
@@ -179,7 +216,7 @@
   if (W.DN_TEST_HOOK) {
     W.DN_TEST_HOOK({
       plain: plain, words: words, close: close, sameStem: sameStem, wordOk: wordOk,
-      covers: covers, variants: variants, longOk: longOk, answerOk: answerOk,
+      covers: covers, variants: variants, longOk: longOk, answerOk: answerOk, genOk: genOk,
       isDunno: isDunno, tokens: tokens, skipSet: skipSet
     });
     return;

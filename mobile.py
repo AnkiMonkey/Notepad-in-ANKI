@@ -27,7 +27,7 @@ FIELD = "DN Legend"
 START = "<!-- DN-MOBILE START: Deep Notes Mobile add-on. Do not edit by hand - Tools > Deep Notes Mobile -->"
 END = "<!-- DN-MOBILE END -->"
 TABLET_KEYS = ["smart_dash", "check_ok_color", "check_bad_color", "check_dunno_color",
-               "check_dunno_words", "check_long_words", "check_long_percent"]
+               "check_dunno_words", "check_long_words", "check_long_percent", "check_abbrev"]
 BLOCK_RE = re.compile(r"\n?<!-- DN-MOBILE START.*?<!-- DN-MOBILE END -->", re.S)
 
 DEFAULTS = {
@@ -123,10 +123,21 @@ def signature(dn_dir: str) -> str:
                 h.update(fh.read())
         except OSError:
             h.update(b"-")
-    dn_conf = get_section("deep_notes")
+    dn_conf = _dn_conf()
     # only what ends up on the tablet – not width/zoom that Deep Notes saves on every close
     h.update(json.dumps({k: dn_conf.get(k) for k in TABLET_KEYS + ["smart_notes_field"]}, sort_keys=True).encode())
     return h.hexdigest()
+
+
+def _dn_conf() -> dict:
+    """Deep Notes settings incl. its defaults (e.g. check_abbrev that was never saved)."""
+    try:
+        from .deep_notes import DEFAULTS as dn_defaults
+    except Exception:
+        dn_defaults = {}
+    conf = dict(dn_defaults)
+    conf.update(get_section("deep_notes"))
+    return conf
 
 
 def load_sources(dn_dir: str) -> dict:
@@ -138,7 +149,7 @@ def load_sources(dn_dir: str) -> dict:
         "answers": _json(os.path.join(uf, "legend_answers.json")),
         "full": _json(os.path.join(uf, "legend_answers_full.json")),
         "abbr": abbreviations(os.path.join(uf, "abbreviations.txt")),
-        "conf": get_section("deep_notes"),
+        "conf": _dn_conf(),
         "js": js,
     }
 
