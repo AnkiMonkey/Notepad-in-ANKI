@@ -39,6 +39,7 @@ Easiest: the ⚙ Settings button in the panel, `Alt+S`, opens a window where eve
 | `check_dunno_words`, `check_dunno_color` | typing one of these (`?, idk, neviem, nwm, nv`) writes the correct answer in blue (`#55aaff`) straight away and moves on |
 | `check_long_words`, `check_long_percent` | legend text longer than 4 words: more than 30 % of its words in your answer is enough (any order, at least half of what you typed must fit) |
 | wrong answer | stays red and stays in the cell; **Enter again** or **two spaces** = "I don't know" → correct answer in blue, your try kept in the tooltip |
+| `hint_word` | typing this word at the end of a cell gives the next correct letter (default `hint`; also the **Hint** button / `Alt+H`) |
 | `shortcut_*` | keyboard shortcuts (Alt+N, Alt+I, Alt+M, Alt+., Alt+,, Alt+S, Alt+P, Alt+W, Alt+K, Alt+J); changes apply after restart |
 
 **Template matching** (first found wins):
