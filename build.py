@@ -1,24 +1,30 @@
-"""Build deep_notes.ankiaddon for AnkiWeb.
+"""Build ankimonkey.ankiaddon for AnkiWeb.
 
 Usage:  python build.py
-Packs only what Anki needs (files at the zip root, no README images, no caches).
+Packs only the code and the public example files (files at the zip root).
+Never packed: meta.json (your settings), vendor/ (downloaded on first 🎤 ON),
+and your private user_files (legends, backup images, models, prompts, error log).
 """
 import os
 import zipfile
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(ROOT, "deep_notes.ankiaddon")
-FILES = ["__init__.py", "config.json", "config.md", "logo.png"]
-DIRS = ["user_files"]
+OUT = os.path.join(ROOT, "ankimonkey.ankiaddon")
+FILES = ["__init__.py", "common.py", "deep_notes.py", "mobile.py", "dn_mobile.js", "voice.py",
+         "ask.py", "typein_focus.py", "config.json", "config.md", "logo.png"]
+PUBLIC_USER_FILES = ["README.txt", "abbreviations.txt", "templates"]
 
 with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:
     for f in FILES:
         z.write(os.path.join(ROOT, f), f)
-    for d in DIRS:
-        for base, dirs, names in os.walk(os.path.join(ROOT, d)):
-            dirs[:] = [x for x in dirs if x != "backup_media"]
+    for item in PUBLIC_USER_FILES:
+        path = os.path.join(ROOT, "user_files", item)
+        if os.path.isfile(path):
+            z.write(path, os.path.relpath(path, ROOT))
+            continue
+        for base, _dirs, names in os.walk(path):
             for n in names:
-                if n.endswith((".pyc", ".bak")) or n == "meta.json" or n.startswith("legend_"):
+                if n.endswith((".pyc", ".bak")):
                     continue
                 full = os.path.join(base, n)
                 z.write(full, os.path.relpath(full, ROOT))

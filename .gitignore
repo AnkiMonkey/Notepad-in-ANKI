@@ -3,5 +3,13 @@ __pycache__/
 meta.json
 *.ankiaddon
 *.bak
+vendor/
+vendor_parts/
+vendor.zip.tmp
+# private user data – never commit
 user_files/legend_*.json
 user_files/backup_media/
+user_files/models/
+user_files/prompts/
+user_files/claude_cwd/
+user_files/error.log

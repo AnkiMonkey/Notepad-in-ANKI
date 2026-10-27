@@ -1,6 +1,10 @@
-**Deep Notes – settings**
+**AnkiMonkey – settings**
 
-Easiest: the ⚙ Settings button in the panel, `Alt+S`, or Tools → Add-ons → Deep Notes → Config (opens the same window, every option explained).
+One config with three sections: `deep_notes`, `voice`, `mobile`. Easiest is the buttons in the panels.
+
+### `deep_notes` – the right panel
+
+Easiest: the ⚙ Settings button in the panel, `Alt+S`, opens a window where every option is explained.
 
 | Key | What it does |
 |---|---|
@@ -54,3 +58,15 @@ Easiest: the ⚙ Settings button in the panel, `Alt+S`, or Tools → Add-ons →
 - `legend_answers.json` – `{"image_legenda.jpg": {"1": "corpus vertebrae", …}}`
 - `legend_answers_full.json` (optional) – same shape with the complete legend wording; `legend_answers.json` then holds the short practical form. An answer matching either one is green, the reveal shows the short form, the tooltip the full one.
 The image is found by its file name in any field of the note (e.g. the Back image).
+
+### `voice` – the left panel (Voice · Ask).
+- `enabled` – 🎤 ON/OFF (saved by the button) · `hotkey` – hold-to-talk key (`F2`)
+- `note_type_prefixes` – note types where F2 works · `answer_field` – answer field for the spelling hint (`Rub`)
+- `model` – `large-v3` (best) / `large-v3-turbo` (faster) / `medium` / `small` · `device` `cpu`/`cuda` · `compute_type` `int8`/`float16`
+- `language` `la` · `beam_size` · `use_deck_hint` · `snap_to_vocab` + `snap_cutoff` (0–1) · `lowercase`
+- `dock_width`, `ask_width`, `collapsed` (panel pushed to the side with «), `hide_outside_review`
+- Ask: `ask_enabled`, `ask_prompt_path`, `ask_extra_prompts` (TXT from anywhere), `claude_path` (empty = found automatically), `claude_model` (empty = your Claude Code default)
+
+### `mobile` – Tools → Deep Notes Mobile. `enabled` is set by the menu; `auto_refresh`; `backup_dir` (empty = Documents\DeepNotes_mobile\backup); `last_signature` internal.
+
+Changes in this JSON apply after an Anki restart.
