@@ -273,8 +273,10 @@ def _vendor_ready() -> bool:
 
 
 # Voice libraries (faster-whisper, ctranslate2, numpy, sounddevice …) for Windows + Python 3.13.
-# Too big for AnkiWeb, so they are downloaded once from the GitHub release when 🎤 is switched ON.
-LIBS_URL = "https://github.com/AnkiMonkey/Notepad-in-ANKI/releases/download/voice-libs-1/vendor-win64-py313.zip"
+# Too big for AnkiWeb, so they are downloaded once from the repo's "voice-libs" branch when 🎤 is switched ON.
+LIBS_BASE = "https://raw.githubusercontent.com/AnkiMonkey/Notepad-in-ANKI/voice-libs/"
+LIBS_PARTS = ["vendor-win64-py313.zip.part00", "vendor-win64-py313.zip.part01"]
+LIBS_TOTAL = 88830281
 LIBS_SHA256 = "a8f102b41ce49cf0aac22cb3c6d762730d637db93035f21c263ea622b76bcb76"
 
 
@@ -299,21 +301,22 @@ def _unpack_vendor(ui=None) -> None:
         want = LIBS_SHA256
         if ui:
             ui("downloading libraries<br>(~90 MB, first time only)…")
-        with _get(LIBS_URL, _ssl_ctx()) as r, open(tmp, "wb") as out:
-            total = int(r.headers.get("Content-Length") or 0)
-            got = 0
-            last = -1
-            while True:
-                chunk = r.read(1 << 20)
-                if not chunk:
-                    break
-                out.write(chunk)
-                h.update(chunk)
-                got += len(chunk)
-                pct = int(got * 100 / total) if total else 0
-                if ui and pct != last and pct % 5 == 0:
-                    last = pct
-                    ui(f"downloading libraries<br>{pct} %")
+        got = 0
+        last = -1
+        with open(tmp, "wb") as out:
+            for part in LIBS_PARTS:
+                with _get(LIBS_BASE + part, _ssl_ctx()) as r:
+                    while True:
+                        chunk = r.read(1 << 20)
+                        if not chunk:
+                            break
+                        out.write(chunk)
+                        h.update(chunk)
+                        got += len(chunk)
+                        pct = int(got * 100 / LIBS_TOTAL)
+                        if ui and pct != last and pct % 5 == 0:
+                            last = pct
+                            ui(f"downloading libraries<br>{pct} %")
     if want and h.hexdigest() != want:
         os.remove(tmp)
         raise RuntimeError("voice libraries are corrupted (checksum mismatch) – switch ON again")
