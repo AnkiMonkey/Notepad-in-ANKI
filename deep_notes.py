@@ -60,6 +60,7 @@ from aqt.qt import (
     QUrl,
     QTableWidget,
     QTableWidgetItem,
+    QApplication,
     QTextCursor,
     QTextEdit,
     QToolButton,
@@ -127,6 +128,8 @@ DEFAULTS = {
     "shortcut_save": "Alt+W",
     "shortcut_smart": "Alt+K",
     "shortcut_check": "Alt+J",
+    "shortcut_hint": "Alt+H",
+    "hint_word": "hint",
 }
 
 COLLAPSED_WIDTH = 30
@@ -774,8 +777,76 @@ def reveal_answer(editor, table, row: int, answer: str, tried: str = "") -> None
     QTimer.singleShot(0, table.next_row)
 
 
+def _hint_text(current: str, answer: str) -> str:
+    """Correct start of the answer + one more letter. What you typed stays if it is a correct
+    start (no diacritics / case needed), otherwise the hint starts again from the first letter."""
+    n = 0
+    while n < len(current) and n < len(answer) and _plain(current[n]) == _plain(answer[n]):
+        n += 1
+    n += 1
+    while n < len(answer) and not answer[n - 1].strip():   # never stop on a space
+        n += 1
+    return answer[:n]
+
+
+def apply_hint(editor, strip_word: bool = False) -> bool:
+    """One more correct letter in the cell you are writing in."""
+    table = state.get("table")
+    row = _editor_row(editor, table) if table is not None else None
+    if table is None or row is None:
+        return False
+    base = table.item(int(row), 0)
+    label = base.text().strip() if base else ""
+    answer = answers_for_card(state.get("card")).get(label)
+    if not answer:
+        tooltip("Hint: no answer for this row")
+        return False
+    text = editor.text()
+    if strip_word:
+        word = re.escape(str(cfg().get("hint_word") or "hint"))
+        text = re.sub(r"\s*" + word + r"\s*$", "", text, flags=re.I)
+    new = _hint_text(text, answer)
+    editor.setText(new)
+    editor.setCursorPosition(len(new))
+    editor.setProperty("dn_hints", int(editor.property("dn_hints") or 0) + 1)
+    editor.setToolTip(f"hints used: {editor.property('dn_hints')}")
+    return True
+
+
+def hint_now() -> None:
+    """Hint button / shortcut: next letter in the open cell, or opens the current (or first empty) row."""
+    table = state.get("table")
+    if table is None or not table.isVisible():
+        return
+    fw = QApplication.focusWidget()
+    if isinstance(fw, QLineEdit) and table.isAncestorOf(fw):
+        apply_hint(fw)
+        return
+    row = table.currentRow()
+    if row < 0 or (table.item(row, 1) and table.item(row, 1).text().strip()):
+        row = next((i for i in range(table.rowCount())
+                    if not (table.item(i, 1) and table.item(i, 1).text().strip())), max(row, 0))
+    if table.item(row, 1) is None:
+        table.setItem(row, 1, QTableWidgetItem(""))
+    table.setCurrentCell(row, 1)
+    table.editItem(table.item(row, 1))
+
+    def later():
+        ed = QApplication.focusWidget()
+        if isinstance(ed, QLineEdit) and table.isAncestorOf(ed):
+            apply_hint(ed)
+    QTimer.singleShot(40, later)
+
+
 def _on_editor_text(editor) -> None:
-    """'?', idk, neviem ... reveal the answer as soon as they are typed (no Enter needed)."""
+    """'?', idk, neviem ... reveal the answer as soon as they are typed (no Enter needed).
+    Typing the hint word ("hint") at the end gives the next correct letter."""
+    word = str(cfg().get("hint_word") or "hint").lower()
+    if word and editor.text().lower().rstrip().endswith(word):
+        t = editor.text().rstrip()
+        if len(t) == len(word) or not t[-len(word) - 1].isalnum():
+            apply_hint(editor, strip_word=True)
+            return
     if not cfg()["check_answers"] or not is_dunno(editor.text()):
         return
     table = state["table"]
@@ -1334,6 +1405,12 @@ def create_dock() -> None:
     actions.addWidget(check_btn)
     state["check_btn"] = check_btn
     update_check_btn()
+    actions.addWidget(_btn(
+        "Hint",
+        f"Next correct letter of the answer in the cell you are writing ({conf['shortcut_hint']}). "
+        f"Or just type \"{conf.get('hint_word', 'hint')}\" in the cell, again for one more letter.",
+        hint_now,
+    ))
     actions.addStretch()
 
     if conf["show_logo"]:
@@ -1455,6 +1532,7 @@ SHORTCUT_ACTIONS = [
     ("shortcut_save", "Save template", lambda: save_template()),
     ("shortcut_smart", "Auto rows on / off", lambda: toggle_smart()),
     ("shortcut_check", "Check on / off", lambda: toggle_check()),
+    ("shortcut_hint", "Hint: next correct letter", lambda: hint_now()),
 ]
 
 
@@ -1620,6 +1698,7 @@ SPEC = [
      "Saves the Base column (or the text) as the template for this card; the old file is kept as .bak."),
     ("Shortcuts", "shortcut_smart", "Auto rows on / off", "str", None, ""),
     ("Shortcuts", "shortcut_check", "Check on / off", "str", None, ""),
+    ("Shortcuts", "shortcut_hint", "Hint: next correct letter", "str", None, ""),
 ]
 
 
