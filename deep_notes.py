@@ -659,7 +659,40 @@ def answer_ok(typed: str, answer: str, label: str = "") -> bool:
         return False
     if any(_covers(words, v) for v in _variants(answer)):
         return True
+    if _genitive_ok(words, answer):
+        return True
     return _long_ok(words, answer)
+
+
+# Genitive attribute is optional: "corpus" = "corpus vertebrae", "foramina sacralia" =
+# "foramina sacralia ossis sacri" – in both directions (legend has it / you typed it).
+# A different genitive is still wrong ("incisura ulnaris radii" ≠ "incisura radialis ulnae").
+GEN_ENDINGS = ("ae", "orum", "arum", "ium", "uum", "ei")
+GEN_IS = {"ossis", "femoris", "capitis", "pelvis", "corporis", "pectoris", "dentis", "partis",
+          "marginis", "tuberis", "foraminis", "cartilaginis", "laminae", "cruris", "pedis",
+          "auris", "oris", "nasi", "cordis", "renis", "lienis", "hepatis", "colli", "manus",
+          "cranii", "orbitae", "sellae", "processus", "tuberositatis", "arcus", "musculi",
+          "nervi", "arteriae", "venae", "ligamenti", "sinus", "canalis", "sulci", "fossae"}
+
+
+def _gen_start(words: list):
+    """Index where a trailing genitive attribute starts (never the first word), else None."""
+    for i in range(1, len(words)):
+        w = words[i]
+        if w in GEN_IS or w.endswith(GEN_ENDINGS) or (len(w) > 3 and w.endswith("i")):
+            return i
+    return None
+
+
+def _genitive_ok(words: list, answer: str) -> bool:
+    ans_words = _words(answer)
+    i = _gen_start(ans_words)
+    if i and any(_covers(words, v) for v in _variants(" ".join(ans_words[:i]))):
+        return True                       # legend "corpus vertebrae", you typed "corpus"
+    j = _gen_start(words)
+    if j and any(_covers(words[:j], v) for v in _variants(answer)):
+        return True                       # legend "corpus", you typed "corpus vertebrae"
+    return False
 
 
 def _long_ok(typed: list, answer: str) -> bool:
