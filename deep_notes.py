@@ -809,6 +809,7 @@ def apply_hint(editor, strip_word: bool = False) -> bool:
     editor.setText(new)
     editor.setCursorPosition(len(new))
     editor.setProperty("dn_hints", int(editor.property("dn_hints") or 0) + 1)
+    editor.setProperty("dn_hint_text", new)     # a space right after a hint must not run Check
     editor.setToolTip(f"hints used: {editor.property('dn_hints')}")
     return True
 
@@ -912,6 +913,9 @@ class CheckDelegate(QStyledItemDelegate):
                     if check_editor(obj, table, int(row), True):
                         return True
                 elif key == Qt.Key.Key_Space and obj.cursorPosition() == len(obj.text()):
+                    if obj.property("dn_hint_text") is not None and obj.text() == obj.property("dn_hint_text"):
+                        obj.insert(" ")     # space after a hint: just a space, so "hint" can follow
+                        return True
                     if obj.text().endswith(" ") and obj.text().strip():
                         # two spaces = "I don't know": show the answer
                         base = table.item(int(row), 0)
