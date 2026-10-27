@@ -38,7 +38,7 @@ One Anki add-on for studying anatomy and medical Latin. **Deep Notes** (the scra
 * **From file:** Tools → Add-ons → Install from file → `ankimonkey.ankiaddon` (build it with `python build.py`).
 * **Move to another PC:** close Anki, copy the whole add-on folder from `%APPDATA%\Anki2\addons21\`, start Anki. Settings (`meta.json`), templates, legends, prompts and the Whisper model come with it, so nothing has to be downloaded again.
 
-Needs Anki 23+ (Qt6). **Voice** needs Windows + Anki 25.x/26.x (Python 3.13). The first time you switch 🎤 ON, it downloads its libraries (~90 MB, [GitHub release](https://github.com/AnkiMonkey/Notepad-in-ANKI/releases/tag/voice-libs-1), checksum checked) and the Whisper model (~3 GB). After that it works offline.
+Needs Anki 23+ (Qt6). **Voice** needs Windows + Anki 25.x/26.x (Python 3.13). The first time you switch 🎤 ON, it downloads its libraries (~90 MB from the [`voice-libs` branch](https://github.com/AnkiMonkey/Notepad-in-ANKI/tree/voice-libs), SHA-256 checked) and the Whisper model (~3 GB). After that it works offline.
 
 > Don't keep the old separate add-ons (Latin Voice Input, Deep Notes Mobile, Anatomia type-in autofocus) next to it. They'd add a second set of panels.
 
