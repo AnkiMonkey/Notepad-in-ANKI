@@ -56,7 +56,7 @@ Panel on the right of the reviewer.
 | `Alt+.` / `Alt+,` | wider / narrower |
 | `Alt+K` | *Auto rows* on/off: rows come from the card's legend |
 | `Alt+J` | *Check* on/off: Enter checks the answer, green = jump on, red = stay |
-| `Alt+H` | *Hint*: next correct letter in the cell you're writing (or type `hint` in the cell, again for one more letter) |
+| `Alt+G` | *Hint*: next correct letter in the cell you're writing (or type `hint` in the cell, again for one more letter) |
 | `Alt+S` | settings window (every option explained) |
 
 * **Templates:** `user_files/templates/`. The file name is the tag or deck with `::` replaced by `__`, e.g. `Anatomy__scapula.txt`. Tag rules (e.g. `Kosti → kosti_notes.txt`) go in Settings.

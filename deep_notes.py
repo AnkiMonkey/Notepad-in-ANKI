@@ -128,7 +128,7 @@ DEFAULTS = {
     "shortcut_save": "Alt+W",
     "shortcut_smart": "Alt+K",
     "shortcut_check": "Alt+J",
-    "shortcut_hint": "Alt+H",
+    "shortcut_hint": "Alt+G",
     "hint_word": "hint",
 }
 
