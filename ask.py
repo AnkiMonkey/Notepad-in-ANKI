@@ -261,12 +261,46 @@ def _ending(lemma: str, form: str) -> str:
     return "-" + form[i:] if i >= 2 else form
 
 
+def _flat(v) -> str:
+    if isinstance(v, dict):
+        return "; ".join(f"{k}: {_flat(x)}" for k, x in v.items() if _flat(x))
+    if isinstance(v, (list, tuple)):
+        return "; ".join(_flat(x) for x in v if _flat(x))
+    return "" if v is None else str(v).strip()
+
+
+def render_any_json(d: dict) -> str:
+    """Any prompt's own JSON (topografia, …): each non-empty key as a small heading + its text,
+    in the order Claude returned them. 'istota: nízka' becomes a warning at the end."""
+    e = html.escape
+    parts, unsure = [], False
+    for k, v in d.items():
+        val = _flat(v)
+        if not val:
+            continue
+        if k.lower() in ("istota", "confidence", "certainty"):
+            unsure = val.lower().startswith(("n", "low"))
+            continue
+        title = k.replace("_", " ").strip()
+        title = title[:1].upper() + title[1:]
+        body = e(val).replace("\n", "<br>")
+        body = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", body)
+        parts.append(f"<div style='margin-bottom:6px'><span style='color:#9cf;font-size:11px'>{e(title)}</span><br>{body}</div>")
+    if unsure:
+        parts.append(f"<span style='color:{RED}'>neistá odpoveď – over v učebnici</span>")
+    return "".join(parts) or "<span style='color:#aaa'>(prázdna odpoveď)</span>"
+
+
 def render_json(text: str) -> str:
     m = re.search(r"\{.*\}", text, flags=re.S)
     try:
         d = json.loads(m.group(0) if m else text)
     except Exception:
         return render(text)
+    if not isinstance(d, dict):
+        return render(text)
+    if "lemma" not in d:          # not the dictionary prompt: show every key of your own JSON
+        return render_any_json(d)
     g = lambda k: (d.get(k) or "").strip() if isinstance(d.get(k), str) else str(d.get(k) or "")
     e = html.escape
     lemma, druh = g("lemma"), g("druh").lower()
