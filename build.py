@@ -10,7 +10,7 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(ROOT, "ankimonkey.ankiaddon")
-FILES = ["__init__.py", "common.py", "deep_notes.py", "mobile.py", "dn_mobile.js", "voice.py",
+FILES = ["manifest.json", "__init__.py", "common.py", "deep_notes.py", "mobile.py", "dn_mobile.js", "voice.py",
          "ask.py", "typein_focus.py", "config.json", "config.md", "logo.png"]
 PUBLIC_USER_FILES = ["README.txt", "abbreviations.txt", "templates"]
 
