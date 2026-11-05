@@ -41,6 +41,7 @@ from aqt.qt import (
     QLabel,
     QObject,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     Qt,
     QVBoxLayout,
@@ -185,7 +186,13 @@ def create_dock() -> None:
                         "QPushButton:hover{background:#333; border-color:#55ff55;}")
     outer.addWidget(strip, 1)
     content = QWidget()
-    outer.addWidget(content, 1)
+    # scroll, ked sa panel nezmesti na vysku obrazovky (maly notebook)
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    scroll.setWidget(content)
+    outer.addWidget(scroll, 1)
     lay = QVBoxLayout(content)
     lay.setContentsMargins(2, 2, 2, 2)
     lay.setSpacing(8)
@@ -227,7 +234,7 @@ def create_dock() -> None:
     body.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
 
     def apply_fold(collapsed: bool) -> None:
-        content.setVisible(not collapsed)
+        scroll.setVisible(not collapsed)
         header.setVisible(not collapsed)
         strip.setVisible(collapsed)
         body.setFixedWidth(36 if collapsed else width)
