@@ -4,7 +4,7 @@
 
 One Anki add-on for studying anatomy and medical Latin. **Deep Notes** (the scratchpad panel next to the card) now comes together with Deep Notes Mobile, Latin voice input, a Latin dictionary (Ask) and type-in autofocus. Every module loads on its own, so if one fails the others keep working.
 
-![Deep Notes](1.png)
+![AnkiMonkey in the reviewer: Voice · Ask on the left, Deep Notes on the right](screenshots/overview.png)
 
 | Module | What it does | Where |
 |---|---|---|
@@ -46,6 +46,8 @@ Needs Anki 23+ (Qt6). **Voice** needs Windows + Anki 25.x/26.x (Python 3.13). Th
 
 Panel on the right of the reviewer.
 
+![Deep Notes table: Auto rows from the legend, Check marks right answers green and wrong ones red](screenshots/deep_notes_check.png)
+
 | Shortcut | Action |
 |---|---|
 | `Alt+N` | collapse / expand panel |
@@ -80,6 +82,8 @@ Why it gets anatomy Latin right: answers from your deck go to Whisper as a spell
 **«** in the panel header pushes the panel to the side (thin strip **» Voice · Ask**). Click the strip to bring it back.
 
 ## Ask (Claude)
+
+<img src="screenshots/voice_ask.png" width="262" align="right" alt="Voice · Ask panel">
 
 Type a word (Slovak or Latin) and press **Enter**:
 
@@ -117,6 +121,8 @@ Tools → **Deep Notes Mobile → Zapnúť** writes a hidden field `DN Legend` a
 | ⚙ in the Deep Notes panel / `Alt+S` | everything about Deep Notes |
 | **Settings** under Ask | prompts, prompt folder, Claude Code install / login / test |
 | Tools → Add-ons → AnkiMonkey → **Config** | the raw JSON with three sections: `deep_notes`, `voice`, `mobile` (explained in `config.md`) |
+
+![Deep Notes settings window (Alt+S)](screenshots/settings.png)
 
 ## Privacy – what leaves your PC
 
